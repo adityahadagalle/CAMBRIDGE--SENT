@@ -203,8 +203,7 @@ const Cases = () => {
   const [actionedSubFilter, setActionedSubFilter] = useState('ALL_ACTIONED');
   const [sidebarState, setSidebarState] = useState({ isOpen: false, case: null, tx: null, actions: [] });
   const role = getRole();
-  const { evaluationMode } = usePresentationMode();
-  const isEval1 = evaluationMode === 'evaluation1';
+  const isOperationsView = true;
 
   // Final primary filters: ALL, NEW, ACTIONED, CLOSED (HIGH RISK removed)
   const QUEUE_FILTERS = ['ALL', 'NEW', 'ACTIONED', 'CLOSED'];
@@ -414,8 +413,8 @@ const Cases = () => {
                 </button>
               </div>
 
-              {/* AUTOMATIC ACTIONS (Suppressed during Evaluation 1 presentation) */}
-              {!isEval1 && (
+              {/* AUTOMATIC ACTIONS (Suppressed during judge presentation) */}
+              {!isOperationsView && (
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider px-2.5 py-1 rounded bg-sky-950/70 border border-sky-800/60 flex items-center gap-1 shrink-0">
                     <Zap className="w-3 h-3 text-sky-400" />
@@ -449,7 +448,7 @@ const Cases = () => {
               )}
 
               {/* MANUAL ACTIONS */}
-              <div className={`flex items-center gap-2 flex-wrap ${!isEval1 ? 'pt-2 border-t border-border/40' : ''}`}>
+              <div className={`flex items-center gap-2 flex-wrap ${!isOperationsView ? 'pt-2 border-t border-border/40' : ''}`}>
                 <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider px-2.5 py-1 rounded bg-purple-950/70 border border-purple-800/60 flex items-center gap-1 shrink-0">
                   <UserCheck className="w-3 h-3 text-purple-400" />
                   MANUAL ACTIONS ({actionedBreakdown.totalManualCases})

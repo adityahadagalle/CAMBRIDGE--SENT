@@ -16,8 +16,7 @@ import {
 const Feed = () => {
   const navigate = useNavigate();
   const { transactions, cases, actions } = useWebSocket();
-  const { evaluationMode } = usePresentationMode();
-  const isEval1 = evaluationMode === 'evaluation1';
+  const isOperationsView = true;
   const [sidebarState, setSidebarState] = useState({ isOpen: false, tx: null, case: null });
   const [selectedAuditTx, setSelectedAuditTx] = useState(null);
   const [newTxIds, setNewTxIds] = useState(new Set());
@@ -404,7 +403,7 @@ const Feed = () => {
           {filteredTransactions.length > 0 ? (
             <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xl">
               <div className="overflow-x-auto">
-                <table className={`w-full text-left border-collapse ${isEval1 ? 'min-w-[1100px]' : 'min-w-[1450px]'}`}>
+                <table className={`w-full text-left border-collapse ${isOperationsView ? 'min-w-[1100px]' : 'min-w-[1450px]'}`}>
                   <thead>
                     <tr className="bg-muted/60 text-[10px] uppercase tracking-wider font-semibold text-slate-400 border-b border-border/80 select-none">
                       <th className="py-3 px-4 whitespace-nowrap min-w-[140px]">Tx ID</th>
@@ -413,7 +412,7 @@ const Feed = () => {
                       <th className="py-3 px-4 whitespace-nowrap min-w-[210px]">Sender → Receiver</th>
                       <th className="py-3 px-4 text-right whitespace-nowrap min-w-[110px]">Amount</th>
                       <th className="py-3 px-4 text-center whitespace-nowrap min-w-[130px]">Risk Score</th>
-                      {!isEval1 && (
+                      {!isOperationsView && (
                         <>
                           <th className="py-3 px-4 text-center whitespace-nowrap min-w-[140px]">Policy Action</th>
                           <th className="py-3 px-4 text-center whitespace-nowrap min-w-[200px]">Execution Status / Controls</th>
@@ -508,7 +507,7 @@ const Feed = () => {
                             <RiskBadge score={tx.risk_score} />
                           </td>
 
-                          {!isEval1 && (
+                          {!isOperationsView && (
                             <>
                               {/* Policy Action */}
                               <td className="py-3.5 px-4 text-center">
