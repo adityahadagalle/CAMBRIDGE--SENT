@@ -57,7 +57,10 @@ async def _build_investigation_context(
     case = None
     if repo is not None:
         try:
-            case = await repo.get_case(case_id)
+            if hasattr(repo, "get_case_by_id"):
+                case = await repo.get_case_by_id(case_id)
+            elif hasattr(repo, "get_case"):
+                case = await repo.get_case(case_id)
         except Exception:
             case = None
 

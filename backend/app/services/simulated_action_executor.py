@@ -285,8 +285,15 @@ async def execute_simulated_action(
             "model_identifier": "SENTINEL_HYBRID_SCORER_V16",
             "correlation_id": f"RUN-{tx_id}"
         },
+        "reason": reason,
+        "actor_type": actor_type,
         "timestamp": timestamp
     }
+
+    # Record in in-memory data_store
+    if "audit_events" not in data_store:
+        data_store["audit_events"] = []
+    data_store["audit_events"].append(copy.deepcopy(audit_record))
 
     # Persist Audit Event to PostgreSQL if repo supplied
     if repo:

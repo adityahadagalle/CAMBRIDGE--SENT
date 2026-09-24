@@ -43,7 +43,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.repositories.dependencies import get_repository, get_verification_repository
 from app.repositories.verification_repository import AbstractVerificationRepository
-
+from app.routes.intelligence import _build_investigation_context
+from app.services.ollama_service import ollama_service
 
 
 @asynccontextmanager
@@ -1674,6 +1675,66 @@ async def execute_operator_freeze(
 class ReleaseRequestPayload(BaseModel):
     operator_id: Optional[str] = "OPERATOR_ADMIN"
     reason: str
+
+
+@app.get("/cases/{case_id}/transactions/{transaction_id}/suggest-release-rationale")
+async def suggest_release_rationale_endpoint(
+    case_id: str,
+    transaction_id: str,
+    repo: AbstractCaseRepository = Depends(get_repository),
+    ver_repo: AbstractVerificationRepository = Depends(get_verification_repository),
+) -> dict[str, Any]:
+    """
+    AI-generated release rationale suggestion based on available case evidence.
+    AI is strictly advisory and cannot execute release.
+    """
+    ctx = await _build_investigation_context(case_id, data_store, repo=repo)
+    if not ctx:
+        ctx = {}
+    if not ctx.get("primary_transaction"):
+        tx = data_store.get("transactions", {}).get(transaction_id)
+        if not tx and hasattr(repo, "get_transaction_by_id"):
+            try:
+                tx = await repo.get_transaction_by_id(transaction_id)
+            except Exception:
+                tx = None
+        if tx:
+            ctx["primary_transaction"] = tx
+
+    ver_status = None
+    if ver_repo:
+        try:
+            records = await ver_repo.get_for_case(case_id)
+            if records:
+                latest = records[0]
+                ver_status = {
+                    "case_id": case_id,
+                    "triggered": True,
+                    "verification_id": latest.get("verification_id"),
+                    "status": latest.get("status"),
+                    "reason_summary": latest.get("reason_summary"),
+                    "requested_at": str(latest.get("created_at") or ""),
+                    "responded_at": str(latest.get("response_received_at") or ""),
+                }
+        except Exception as e:
+            logger.warning(f"Error fetching verification status for case {case_id}: {e}")
+
+    if not ver_status:
+        raw_ver = data_store.get("customer_verifications", {}).get(case_id)
+        if raw_ver:
+            ver_status = raw_ver if isinstance(raw_ver, dict) else {"status": str(raw_ver), "triggered": True}
+
+    res = ollama_service.suggest_release_rationale(
+        case_id=case_id,
+        transaction_id=transaction_id,
+        investigation_context=ctx or {},
+        verification_status=ver_status
+    )
+    
+    if res.status != "ready" or not res.response:
+        raise HTTPException(status_code=503, detail=res.error_detail or "AI rationale generation failed.")
+        
+    return {"rationale": res.response.rationale}
 
 
 @app.post("/cases/{case_id}/transactions/{transaction_id}/release")

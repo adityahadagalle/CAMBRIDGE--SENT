@@ -70,6 +70,10 @@ const InvestigationSidebar = ({
   const [releaseReason, setReleaseReason] = useState('');
   const [releaseLoading, setReleaseLoading] = useState(false);
   const [releaseError, setReleaseError] = useState(null);
+  const [fetchingAiRationale, setFetchingAiRationale] = useState(false);
+  const [aiRationaleSuggested, setAiRationaleSuggested] = useState(false);
+  const [aiRationaleError, setAiRationaleError] = useState(null);
+  const [lastFetchedKey, setLastFetchedKey] = useState(null);
 
   // ── Customer Verification State (n8n VerifyFlow) ─────────────────────────
   const [verificationStatus, setVerificationStatus] = useState(null);
@@ -101,6 +105,42 @@ const InvestigationSidebar = ({
       setShowReleaseModal(true);
     }
   }, [autoOpenReleaseModal, isAccountFrozen]);
+
+  useEffect(() => {
+    const currentKey = `${caseId}_${txId}`;
+    if (showReleaseModal && caseId && txId) {
+      if (lastFetchedKey !== currentKey || (!releaseReason && !fetchingAiRationale && !aiRationaleError)) {
+        setFetchingAiRationale(true);
+        setAiRationaleError(null);
+        setLastFetchedKey(currentKey);
+
+        fetch(`${API_BASE}/cases/${caseId}/transactions/${txId}/suggest-release-rationale`)
+          .then(async (res) => {
+            if (!res.ok) {
+              const err = await res.json().catch(() => null);
+              throw new Error(err?.detail || `AI rationale unavailable (HTTP ${res.status})`);
+            }
+            return res.json();
+          })
+          .then((data) => {
+            if (data && data.rationale) {
+              setReleaseReason(data.rationale);
+              setAiRationaleSuggested(true);
+              setAiRationaleError(null);
+            } else {
+              throw new Error("No rationale returned from AI service");
+            }
+          })
+          .catch((err) => {
+            setAiRationaleSuggested(false);
+            setAiRationaleError("AI suggestion unavailable. Enter a release rationale manually.");
+          })
+          .finally(() => {
+            setFetchingAiRationale(false);
+          });
+      }
+    }
+  }, [showReleaseModal, caseId, txId, lastFetchedKey, releaseReason, fetchingAiRationale, aiRationaleError, API_BASE]);
 
   // Keyboard shortcut: Escape to close modal or workspace
   useEffect(() => {
@@ -375,6 +415,9 @@ const InvestigationSidebar = ({
         setFrozenAt(null);
         setShowReleaseModal(false);
         setReleaseReason('');
+        setAiRationaleSuggested(false);
+        setAiRationaleError(null);
+        setLastFetchedKey(null);
         setActionSuccessMsg('Account released by operator.');
         setTimeout(() => setActionSuccessMsg(null), 4000);
       } else {
@@ -1198,16 +1241,36 @@ const InvestigationSidebar = ({
                 </div>
 
                 <label className="block">
-                  <span className="text-[10px] font-mono text-slate-400 uppercase font-bold">
-                    Reason <span className="text-rose-400">*</span>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase font-bold flex items-center justify-between">
+                    <span>Reason <span className="text-rose-400">*</span></span>
+                    {aiRationaleSuggested && !fetchingAiRationale && (
+                      <span className="text-[9px] text-sky-400 bg-sky-400/10 px-1.5 py-0.5 rounded border border-sky-400/20 tracking-wider">AI-SUGGESTED</span>
+                    )}
+                    {fetchingAiRationale && (
+                      <span className="text-[9px] text-violet-400 bg-violet-400/10 px-1.5 py-0.5 rounded border border-violet-400/20 tracking-wider flex items-center gap-1">
+                        <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                        AI-SUGGESTED (GENERATING...)
+                      </span>
+                    )}
                   </span>
                   <textarea
                     value={releaseReason}
-                    onChange={(e) => setReleaseReason(e.target.value)}
-                    rows={3}
-                    placeholder="Explain why this account/transaction is being released..."
+                    onChange={(e) => {
+                      setReleaseReason(e.target.value);
+                      if (aiRationaleError && e.target.value.trim()) {
+                        setAiRationaleError(null);
+                      }
+                    }}
+                    rows={4}
+                    placeholder={fetchingAiRationale ? "AI is generating a suggested rationale..." : "Explain why this account/transaction is being released..."}
+                    disabled={fetchingAiRationale}
                     className="mt-1 w-full bg-[#060B14] border border-[#1E293B] rounded-lg p-2.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-violet-500/50"
                   />
+                  {aiRationaleError && (
+                    <p className="mt-1.5 text-[11px] text-amber-400/90 font-mono">
+                      {aiRationaleError}
+                    </p>
+                  )}
                 </label>
 
                 <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] font-mono text-amber-300/90">
@@ -1238,7 +1301,7 @@ const InvestigationSidebar = ({
                     </>
                   ) : (
                     <>
-                      <span>CONFIRM RELEASE</span>
+                      <span>APPROVE & RELEASE</span>
                     </>
                   )}
                 </button>

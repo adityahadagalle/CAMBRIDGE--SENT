@@ -234,6 +234,42 @@ class ChallengeResult(BaseModel):
     error_detail: str | None = None
 
 
+SENTINEL_RATIONALE_SYSTEM_PROMPT = """You are the SENTINEL Investigation Intelligence Assistant.
+A human compliance analyst is reviewing an account or transaction that was frozen by automated policy, where a customer verification response (e.g., YES — CUSTOMER_AUTHORIZED) or investigation evidence is available.
+
+Your task is to draft an evidence-grounded release rationale suggestion for the analyst to review.
+
+CRITICAL CONSTRAINTS:
+- You DO NOT execute the release. Only the human analyst decides and executes.
+- Ground your suggestion in the supplied evidence: customer verification response, transaction details, and investigation findings.
+- If the customer confirmed the transaction (e.g. CUSTOMER_AUTHORIZED / RESPONDED_YES) and no active high-severity fraud block remains, formulate a concise, professional justification stating that the customer confirmed the transaction as authorized and that based on available evidence the transaction can be reviewed for release.
+- Output ONLY valid JSON containing a single field "rationale".
+
+OUTPUT FORMAT:
+{
+  "rationale": "<2-3 sentence evidence-grounded suggested release rationale>"
+}
+"""
+
+
+class ReleaseRationaleResponse(BaseModel):
+    rationale: str = Field(..., min_length=1)
+
+
+class ReleaseRationaleResult(BaseModel):
+    status: str
+    provider: str = "ollama"
+    model: str = OLLAMA_MODEL
+    case_id: str | None = None
+    transaction_id: str | None = None
+    generated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+    response: ReleaseRationaleResponse | None = None
+    actor: str = "AI_ASSISTANT"
+    purpose: str = "SUGGEST_RELEASE_RATIONALE"
+    error_detail: str | None = None
+
+
+
 # ── SERVICE ───────────────────────────────────────────────────────────────────
 class OllamaService:
     """
@@ -255,6 +291,32 @@ class OllamaService:
         self.model = model
         self.timeout = timeout
         self._chat_url = f"{self.base_url}/api/chat"
+
+    def _resolve_model(self) -> str:
+        """
+        Dynamically determine the model to use.
+        If OLLAMA_MODEL env var was explicitly set, use it.
+        Otherwise, query Ollama /api/tags to see what models are locally installed.
+        If self.model is installed, use it; otherwise pick an installed model (e.g. llama3.2:3b).
+        """
+        if "OLLAMA_MODEL" in os.environ:
+            return os.environ["OLLAMA_MODEL"]
+        try:
+            req = urllib.request.Request(f"{self.base_url}/api/tags", method="GET")
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    installed = [m.get("name") for m in data.get("models", []) if m.get("name")]
+                    if installed:
+                        if self.model in installed:
+                            return self.model
+                        for m in installed:
+                            if any(k in m.lower() for k in ("llama", "qwen", "mistral")):
+                                return m
+                        return installed[0]
+        except Exception:
+            pass
+        return self.model
 
     # ── PUBLIC API ────────────────────────────────────────────────────────────
 
@@ -629,8 +691,9 @@ class OllamaService:
         POST to /api/chat with non-streaming response.
         Raises TimeoutError on timeout, URLError on network issues.
         """
+        model = self._resolve_model()
         payload = {
-            "model": self.model,
+            "model": model,
             "stream": False,
             "options": {
                 "temperature": 0.1,   # Low temperature for consistent, grounded analysis
@@ -901,6 +964,184 @@ class OllamaService:
             target_stage=target_stage,
             agent_finding_id=agent_finding_id,
             response=challenge_resp,
+        )
+
+    def suggest_release_rationale(
+        self,
+        case_id: str,
+        transaction_id: str,
+        investigation_context: dict[str, Any],
+        verification_status: dict[str, Any] | None = None,
+    ) -> ReleaseRationaleResult:
+        if not self.is_available():
+            return ReleaseRationaleResult(
+                status="unavailable",
+                case_id=case_id,
+                transaction_id=transaction_id,
+                error_detail="Ollama is not reachable at configured URL.",
+            )
+
+        user_message = self._build_rationale_message(
+            case_id=case_id,
+            transaction_id=transaction_id,
+            ctx=investigation_context,
+            verification_status=verification_status,
+        )
+
+        try:
+            raw_response = self._call_chat(user_message, system_prompt=SENTINEL_RATIONALE_SYSTEM_PROMPT)
+        except TimeoutError:
+            return ReleaseRationaleResult(
+                status="timeout",
+                case_id=case_id,
+                transaction_id=transaction_id,
+                error_detail=f"Ollama did not respond within {self.timeout}s.",
+            )
+        except urllib.error.URLError as exc:
+            return ReleaseRationaleResult(
+                status="unavailable",
+                case_id=case_id,
+                transaction_id=transaction_id,
+                error_detail=f"Network error: {exc}",
+            )
+        except Exception as exc:
+            return ReleaseRationaleResult(
+                status="error",
+                case_id=case_id,
+                transaction_id=transaction_id,
+                error_detail=f"Unexpected error: {exc}",
+            )
+
+        return self._parse_rationale_response(
+            raw=raw_response,
+            case_id=case_id,
+            transaction_id=transaction_id,
+        )
+
+    def _build_rationale_message(
+        self,
+        case_id: str,
+        transaction_id: str,
+        ctx: dict[str, Any],
+        verification_status: dict[str, Any] | None = None,
+    ) -> str:
+        lines = [
+            "=== GENERATE SUGGESTED RELEASE RATIONALE ===",
+            f"Case ID: {case_id}",
+            f"Transaction ID: {transaction_id}",
+        ]
+
+        if verification_status:
+            lines.append("")
+            lines.append("--- CUSTOMER VERIFICATION STATUS ---")
+            st = verification_status.get("status", "UNKNOWN")
+            lines.append(f"Status: {st}")
+            if verification_status.get("reason_summary"):
+                lines.append(f"Reason: {verification_status['reason_summary']}")
+            if st in ("RESPONDED_YES", "CUSTOMER_AUTHORIZED"):
+                lines.append("Customer Confirmation: YES — CUSTOMER_AUTHORIZED (Customer confirmed the transaction as authorized)")
+            elif st in ("RESPONDED_NO", "CUSTOMER_NOT_AUTHORIZED"):
+                lines.append("Customer Confirmation: NO — CUSTOMER_NOT_AUTHORIZED (Customer reported unauthorized)")
+            lines.append(json.dumps(verification_status, indent=2))
+
+        pt = ctx.get("primary_transaction") if ctx else None
+        if pt:
+            lines.append("")
+            lines.append("--- PRIMARY TRANSACTION DETAILS ---")
+            for k in ("tx_id", "amount", "sender_account", "receiver_account", "channel", "risk_score", "risk_level"):
+                if k in pt:
+                    lines.append(f"  {k}: {pt[k]}")
+
+        inv_reports = ctx.get("investigation_reports", {}) if ctx else {}
+        for stg in ["evidence", "contextual", "regulatory", "audit_explanation", "decision_support"]:
+            if stg in inv_reports:
+                lines.append("")
+                lines.append(f"--- VERIFIED {stg.upper()} REPORT ---")
+                lines.append(json.dumps(inv_reports[stg], indent=2)[:2000])
+
+        lines.append("")
+        lines.append("Based strictly on the customer authorization and the investigation findings above, provide your drafted JSON release rationale.")
+        return "\n".join(lines)
+
+    def _parse_rationale_response(
+        self,
+        raw: str,
+        case_id: str,
+        transaction_id: str,
+    ) -> ReleaseRationaleResult:
+        model_used = self._resolve_model()
+        try:
+            ollama_resp = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            return ReleaseRationaleResult(
+                status="error",
+                provider="ollama",
+                model=model_used,
+                case_id=case_id,
+                transaction_id=transaction_id,
+                error_detail=f"Invalid JSON from Ollama: {exc}",
+            )
+
+        content: str = ""
+        msg = ollama_resp.get("message") or {}
+        if isinstance(msg, dict):
+            content = msg.get("content", "")
+
+        if not content:
+            return ReleaseRationaleResult(
+                status="error",
+                provider="ollama",
+                model=model_used,
+                case_id=case_id,
+                transaction_id=transaction_id,
+                error_detail="Ollama returned empty message content.",
+            )
+
+        import re
+        content_no_think = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+
+        stripped = content_no_think
+        if "```" in stripped:
+            match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', stripped, re.DOTALL)
+            if match:
+                stripped = match.group(1).strip()
+            else:
+                lines = [l for l in stripped.splitlines() if not l.strip().startswith("```")]
+                stripped = "\n".join(lines).strip()
+
+        if not stripped.startswith("{"):
+            start = stripped.find("{")
+            end = stripped.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                stripped = stripped[start:end+1]
+
+        rationale_text = ""
+        try:
+            resp_dict = json.loads(stripped)
+            rationale_text = resp_dict.get("rationale", "")
+        except json.JSONDecodeError:
+            # If the model wrote the rationale as plain text directly
+            cleaned = content_no_think.strip().strip('"').strip("'")
+            if cleaned and not cleaned.startswith("{") and not cleaned.startswith("```"):
+                rationale_text = cleaned
+
+        if not rationale_text or not isinstance(rationale_text, str) or not rationale_text.strip():
+            return ReleaseRationaleResult(
+                status="error",
+                provider="ollama",
+                model=model_used,
+                case_id=case_id,
+                transaction_id=transaction_id,
+                error_detail="Model output missing 'rationale' field.",
+            )
+
+        return ReleaseRationaleResult(
+            status="ready",
+            provider="ollama",
+            model=model_used,
+            case_id=case_id,
+            transaction_id=transaction_id,
+            response=ReleaseRationaleResponse(rationale=rationale_text.strip()),
         )
 
 
