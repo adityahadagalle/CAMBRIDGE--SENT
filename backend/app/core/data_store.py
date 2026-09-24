@@ -3,5 +3,6 @@ data_store = {
     "cases": {},
     "graphs": {},
     "accounts": {},
-    "actions": []
+    "actions": [],
+    "customer_verifications": {}
 }

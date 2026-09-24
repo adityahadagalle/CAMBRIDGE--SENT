@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { 
-  X, ShieldAlert, Activity, ArrowRight, Lock, CheckCircle2, AlertTriangle, 
-  GitCommit, FileText, ChevronRight, ChevronDown, Zap, Network, Cpu, Brain, 
+import {
+  X, ShieldAlert, Activity, ArrowRight, Lock, CheckCircle2, AlertTriangle,
+  GitCommit, FileText, ChevronRight, ChevronDown, Zap, Network, Cpu, Brain,
   WifiOff, Clock, ShieldCheck, Layers, Gavel, Check, RefreshCw, AlertCircle,
-  ExternalLink, Sparkles
+  ExternalLink, Sparkles, MailCheck, ThumbsUp, ThumbsDown, MailQuestion
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import RiskBadge from './RiskBadge';
@@ -13,6 +13,7 @@ import GraphCanvas from '../modules/GraphModule/GraphCanvas';
 import InvestigationWorkflowGraph from './InvestigationWorkflowGraph';
 import AutomationAuditDrawer from './AutomationAuditDrawer';
 import { maskAccount } from '../utils/maskAccount';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 
 /**
@@ -22,14 +23,15 @@ import { maskAccount } from '../utils/maskAccount';
  * Preserves 100% backend contract compatibility, deterministic 5-stage orchestration,
  * Qwen 3:8B isolated advisory intelligence, and strict human-in-the-loop freeze boundary.
  */
-const InvestigationSidebar = ({ 
-  isOpen, 
-  selectedCase, 
-  selectedTransaction, 
-  actions = [], 
+const InvestigationSidebar = ({
+  isOpen,
+  selectedCase,
+  selectedTransaction,
+  actions = [],
   onClose,
   role,
-  isAutomationOn = true
+  isAutomationOn = true,
+  autoOpenReleaseModal = false
 }) => {
   const isViewer = role === 'viewer';
   const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
@@ -60,6 +62,18 @@ const InvestigationSidebar = ({
   const [freezeLoading, setFreezeLoading] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState(null);
   const [showFreezeModal, setShowFreezeModal] = useState(false);
+  const [frozenBy, setFrozenBy] = useState(null);
+  const [frozenAt, setFrozenAt] = useState(null);
+
+  // ── Release / Unfreeze State (human-only, mandatory rationale) ──────────
+  const [showReleaseModal, setShowReleaseModal] = useState(false);
+  const [releaseReason, setReleaseReason] = useState('');
+  const [releaseLoading, setReleaseLoading] = useState(false);
+  const [releaseError, setReleaseError] = useState(null);
+
+  // ── Customer Verification State (n8n VerifyFlow) ─────────────────────────
+  const [verificationStatus, setVerificationStatus] = useState(null);
+  const wsState = useWebSocket();
 
   // Target Identifiers
   const caseId = selectedCase?.case_id || selectedTransaction?.case_id || (selectedTransaction?.tx_id ? `CASE-${selectedTransaction.tx_id.slice(-8)}` : 'CASE-987A65BC');
@@ -79,6 +93,14 @@ const InvestigationSidebar = ({
       setIsAccountFrozen(true);
     }
   }, [selectedCase?.status, selectedTransaction?.status]);
+
+  // Deep-link from the customer-response notification's "REVIEW & RELEASE"
+  // button -- open the release modal automatically once frozen state is known.
+  useEffect(() => {
+    if (autoOpenReleaseModal && isAccountFrozen) {
+      setShowReleaseModal(true);
+    }
+  }, [autoOpenReleaseModal, isAccountFrozen]);
 
   // Keyboard shortcut: Escape to close modal or workspace
   useEffect(() => {
@@ -136,6 +158,37 @@ const InvestigationSidebar = ({
       .then(data => { if (data) setPhase1Evidence(data); })
       .catch(() => {})
       .finally(() => setPhase1Loading(false));
+
+    // E. Fetch Customer Verification Status (n8n VerifyFlow) & poll as a
+    // fallback in case the WebSocket push is missed (live updates normally
+    // arrive instantly via wsState.verifications below).
+    const fetchVerificationStatus = () => {
+      fetch(`${API_BASE}/cases/${caseId}/verification-status`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => { if (data) setVerificationStatus(data); })
+        .catch(() => {});
+    };
+    fetchVerificationStatus();
+    const verificationInterval = setInterval(fetchVerificationStatus, 3000);
+
+    // F. Fetch live freeze/release attribution for the sender account (the
+    // account the backend actually freezes). Ground truth from the server,
+    // not just local optimistic state -- survives reload and cross-session viewing.
+    const senderAccountId = selectedTransaction?.sender_account;
+    const fetchFreezeStatus = () => {
+      if (!senderAccountId) return;
+      fetch(`${API_BASE}/accounts/${senderAccountId}/freeze-status`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (!data) return;
+          setIsAccountFrozen(Boolean(data.frozen));
+          setFrozenBy(data.frozen_by || null);
+          setFrozenAt(data.frozen_at || null);
+        })
+        .catch(() => {});
+    };
+    fetchFreezeStatus();
+    const freezeStatusInterval = setInterval(fetchFreezeStatus, 3000);
 
     // D. Fetch or derive Graph Topology for Cytoscape
     setGraphLoading(true);
@@ -206,7 +259,11 @@ const InvestigationSidebar = ({
 
     fetchGraph();
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      clearInterval(verificationInterval);
+      clearInterval(freezeStatusInterval);
+    };
   }, [isOpen, caseId, selectedTransaction?.tx_id, selectedCase?.primary_tx_id]);
 
   // ── 2. Run Qwen 3:8B Advisory Analysis (Isolated) ────────────────────────
@@ -295,6 +352,42 @@ const InvestigationSidebar = ({
     }
   };
 
+  // ── Human-only RELEASE / UNFREEZE handler ────────────────────────────────
+  // Requires an authenticated analyst action and a mandatory rationale.
+  // Cannot be triggered by a customer response, n8n, an AI agent, or a timeout --
+  // this is the only code path in the app that calls /transactions/{id}/release.
+  const handleRelease = async () => {
+    if (!txId || !releaseReason.trim()) {
+      setReleaseError('A release reason is required.');
+      return;
+    }
+    setReleaseLoading(true);
+    setReleaseError(null);
+    try {
+      const res = await fetch(`${API_BASE}/transactions/${txId}/release`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operator_id: 'OPERATOR_ADMIN', reason: releaseReason.trim() })
+      });
+      if (res.ok) {
+        setIsAccountFrozen(false);
+        setFrozenBy(null);
+        setFrozenAt(null);
+        setShowReleaseModal(false);
+        setReleaseReason('');
+        setActionSuccessMsg('Account released by operator.');
+        setTimeout(() => setActionSuccessMsg(null), 4000);
+      } else {
+        const errDetail = await res.json().catch(() => null);
+        setReleaseError(errDetail?.detail || `RELEASE REJECTED (HTTP ${res.status})`);
+      }
+    } catch (err) {
+      setReleaseError('Network error reaching Sentinel policy service.');
+    } finally {
+      setReleaseLoading(false);
+    }
+  };
+
   // ── 4. Extract Stage Outputs & Summary Findings ──────────────────────────
   const stagesList = Array.isArray(investigationReadModel?.stages) ? investigationReadModel.stages : [];
   const rawEvidence = stagesList.find(s => s.stage === 'EVIDENCE')?.output;
@@ -369,6 +462,20 @@ const InvestigationSidebar = ({
     }
     return "High-confidence mule-chain indicators detected. Immediate operator freeze recommended for downstream exit node to prevent capital dispersion.";
   }, [decisionSupportStage]);
+
+  // Customer Verification (n8n VerifyFlow) — merges the polled REST snapshot
+  // with any live WebSocket push for this case, live push wins when present.
+  const liveVerification = wsState?.verifications?.[caseId];
+  const displayVerification = useMemo(() => {
+    if (!verificationStatus?.triggered && !liveVerification) return null;
+    return {
+      status: liveVerification?.status || verificationStatus?.status || 'PENDING',
+      reason_summary: liveVerification?.reason_summary || verificationStatus?.reason_summary || '',
+      requested_at: verificationStatus?.requested_at || null,
+      responded_at: liveVerification?.responded_at || verificationStatus?.responded_at || null,
+      demo_customer_email_masked: verificationStatus?.demo_customer_email_masked || null
+    };
+  }, [verificationStatus, liveVerification]);
 
   if (!isOpen) return null;
 
@@ -748,6 +855,90 @@ const InvestigationSidebar = ({
               )}
             </div>
           )}
+
+          {/* ── CUSTOMER VERIFICATION (n8n VerifyFlow) ───────────────────── */}
+          {displayVerification && (
+            <div className="bg-[#0B132B] border border-violet-500/30 rounded-xl p-4 relative overflow-hidden shadow-[0_0_20px_rgba(139,92,246,0.08)] space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1E293B] pb-2.5">
+                <div className="flex items-center gap-2">
+                  <MailQuestion className="w-4 h-4 text-violet-400" />
+                  <span className="font-mono text-xs font-bold text-violet-300 uppercase tracking-wider">
+                    CUSTOMER VERIFICATION
+                  </span>
+                </div>
+                <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-violet-500/10 border border-violet-500/30 text-violet-300 uppercase tracking-wider">
+                  AUTOMATICALLY TRIGGERED · ADDITIONAL EVIDENCE ONLY
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-lg bg-[#060B14] border border-[#1E293B] space-y-1.5">
+                <div className="text-[10px] font-mono text-slate-400 uppercase font-bold">REASON</div>
+                <p className="text-slate-300 text-xs leading-relaxed">{displayVerification.reason_summary}</p>
+              </div>
+
+              {isAccountFrozen && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 text-amber-300 text-[11px] font-mono font-bold">
+                  <Lock className="w-3.5 h-3.5 shrink-0" />
+                  <span>ACCOUNT/TRANSACTION: FROZEN{frozenBy ? ` · Frozen by: ${frozenBy}` : ''}</span>
+                </div>
+              )}
+
+              {displayVerification.status === 'PENDING' && (
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs font-mono font-semibold">
+                  <MailCheck className="w-4 h-4 shrink-0" />
+                  <span>
+                    WAITING FOR CUSTOMER RESPONSE{displayVerification.demo_customer_email_masked ? ` · SENT TO ${displayVerification.demo_customer_email_masked}` : ''}
+                    {isAccountFrozen ? ' (no automatic release)' : ''}
+                  </span>
+                </div>
+              )}
+
+              {displayVerification.status === 'RESPONDED_YES' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-xs font-mono font-semibold">
+                    <ThumbsUp className="w-4 h-4 shrink-0" />
+                    <span>YES — CUSTOMER_AUTHORIZED</span>
+                    {displayVerification.responded_at && (
+                      <span className="text-[10px] text-emerald-400/70 font-normal ml-auto">
+                        {new Date(displayVerification.responded_at).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  {isAccountFrozen && (
+                    <div className="p-2.5 rounded-lg bg-violet-500/10 border border-violet-500/30 space-y-2">
+                      <p className="text-[11px] text-violet-200">
+                        Customer confirmed the payment after the freeze. Human review required before release.
+                      </p>
+                      <button
+                        onClick={() => setShowReleaseModal(true)}
+                        disabled={isViewer}
+                        className="px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-40"
+                      >
+                        RELEASE / UNFREEZE
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {displayVerification.status === 'RESPONDED_NO' && (
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 text-xs font-mono font-semibold">
+                  <ThumbsDown className="w-4 h-4 shrink-0" />
+                  <span>NO — CUSTOMER_NOT_AUTHORIZED{isAccountFrozen ? ' · Status: FROZEN' : ''}</span>
+                  {displayVerification.responded_at && (
+                    <span className="text-[10px] text-red-400/70 font-normal ml-auto">
+                      {new Date(displayVerification.responded_at).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className="text-[9px] font-mono text-slate-500 pt-1 border-t border-[#1E293B]">
+                This response is additional case evidence. It does not close, dismiss, approve, escalate,
+                freeze, or release this case/account — the human analyst decision remains required.
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── SECTION D: STICKY RECOMMENDATION & ACTION BAR (Topology Mode) ─ */}
@@ -790,14 +981,39 @@ const InvestigationSidebar = ({
                 DISMISS
               </button>
 
+              {releaseError && (
+                <span className="text-xs font-mono text-rose-400 font-bold animate-fadeIn">
+                  ⚠ {releaseError}
+                </span>
+              )}
+
               {/* FREEZE ACCOUNT — HUMAN OPERATOR APPROVAL REQUIRED */}
               {isAccountFrozen ? (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-xs font-mono">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="font-bold text-emerald-400">ACCOUNT FROZEN</span>
-                  <span className="text-slate-500">·</span>
-                  <span className="text-[10px] text-slate-400">Operator Confirmed</span>
-                </div>
+                <>
+                  <div className="flex flex-col items-start gap-0.5 px-4 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs font-mono">
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="font-bold text-amber-400">FROZEN BY ANALYST</span>
+                    </div>
+                    {(frozenBy || frozenAt) && (
+                      <span className="text-[9px] text-slate-400">
+                        {frozenBy ? `By ${frozenBy}` : ''}{frozenBy && frozenAt ? ' · ' : ''}{frozenAt ? new Date(frozenAt).toLocaleString() : ''}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowReleaseModal(true)}
+                    disabled={isViewer || releaseLoading}
+                    className={twMerge(
+                      "px-4 py-2 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all shadow-lg",
+                      "bg-violet-600 hover:bg-violet-500 text-white border border-violet-400 disabled:opacity-40"
+                    )}
+                    title={isViewer ? "Admin privileges required" : "Release / unfreeze this account"}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{releaseLoading ? 'RELEASING...' : 'RELEASE / UNFREEZE'}</span>
+                  </button>
+                </>
               ) : (
                 <button
                   onClick={() => setShowFreezeModal(true)}
@@ -915,6 +1131,114 @@ const InvestigationSidebar = ({
                     <>
                       <Lock className="w-3.5 h-3.5" />
                       <span>CONFIRM FREEZE</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── RELEASE / UNFREEZE CONFIRMATION MODAL (human-only, mandatory reason) ── */}
+        {showReleaseModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn select-none"
+            onClick={() => !releaseLoading && setShowReleaseModal(false)}
+          >
+            <div
+              className="w-full max-w-md bg-[#0B132B] border border-violet-500/40 rounded-xl shadow-[0_0_40px_rgba(139,92,246,0.2)] p-6 relative overflow-hidden font-sans space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-600 via-purple-500 to-violet-600" />
+
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/30 flex items-center justify-center shrink-0">
+                    <RefreshCw className="w-5 h-5 text-violet-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold font-mono text-slate-100 uppercase tracking-wider">
+                      Release frozen account/transaction?
+                    </h3>
+                    <span className="text-[9px] font-mono text-violet-400 font-semibold tracking-tight">
+                      HUMAN OPERATOR AUTHORIZATION REQUIRED
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !releaseLoading && setShowReleaseModal(false)}
+                  disabled={releaseLoading}
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-[#1E293B] transition-colors disabled:opacity-40"
+                  title="Cancel (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                {verificationStatus?.triggered && verificationStatus.status !== 'PENDING' && (
+                  <div className="p-2.5 rounded-lg bg-[#060B14] border border-[#1E293B] text-[11px] text-slate-300">
+                    Customer response on file: {' '}
+                    <span className={verificationStatus.status === 'RESPONDED_YES' ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
+                      {verificationStatus.status === 'RESPONDED_YES' ? 'YES — CUSTOMER_AUTHORIZED' : 'NO — CUSTOMER_NOT_AUTHORIZED'}
+                    </span>
+                  </div>
+                )}
+
+                <div className="p-3 rounded-lg bg-[#060B14] border border-[#1E293B] font-mono space-y-1.5">
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500 uppercase tracking-wider">Case Identifier</span>
+                    <span className="text-slate-300">{caseId}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500 uppercase tracking-wider">Associated Tx</span>
+                    <span className="text-slate-300">{txId}</span>
+                  </div>
+                </div>
+
+                <label className="block">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase font-bold">
+                    Reason <span className="text-rose-400">*</span>
+                  </span>
+                  <textarea
+                    value={releaseReason}
+                    onChange={(e) => setReleaseReason(e.target.value)}
+                    rows={3}
+                    placeholder="Explain why this account/transaction is being released..."
+                    className="mt-1 w-full bg-[#060B14] border border-[#1E293B] rounded-lg p-2.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-violet-500/50"
+                  />
+                </label>
+
+                <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] font-mono text-amber-300/90">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <span>This action will be recorded in the immutable audit trail and cannot be undone by n8n, the AI agents, or the customer.</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1E293B]">
+                <button
+                  type="button"
+                  onClick={() => setShowReleaseModal(false)}
+                  disabled={releaseLoading}
+                  className="px-4 py-2 rounded-lg text-xs font-mono font-semibold bg-[#1E293B] hover:bg-[#334155] text-slate-300 transition-colors disabled:opacity-50"
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRelease}
+                  disabled={releaseLoading || !releaseReason.trim()}
+                  className="px-4 py-2 rounded-lg text-xs font-mono font-bold bg-violet-600 hover:bg-violet-500 text-white border border-violet-400 transition-all flex items-center gap-2 shadow-lg disabled:opacity-50"
+                >
+                  {releaseLoading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>RELEASING...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>CONFIRM RELEASE</span>
                     </>
                   )}
                 </button>

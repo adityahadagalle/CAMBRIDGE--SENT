@@ -12,6 +12,8 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Depends, H
 from pydantic import BaseModel
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,7 +41,8 @@ from app.services.investigation_orchestrator import investigation_orchestrator
 from fastapi.middleware.cors import CORSMiddleware
 
 
-from app.repositories.dependencies import get_repository
+from app.repositories.dependencies import get_repository, get_verification_repository
+from app.repositories.verification_repository import AbstractVerificationRepository
 
 
 
@@ -101,6 +104,10 @@ app.include_router(intelligence_router)
 from app.routes.benchmark import router as benchmark_router
 app.include_router(benchmark_router)
 
+# ── N8N INTEGRATION ROUTER (VerifyFlow callback) ───────────────────────────────
+from app.routes.n8n import router as n8n_router, n8n_route_state
+app.include_router(n8n_router)
+
 class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: list[WebSocket] = []
@@ -127,6 +134,7 @@ manager = ConnectionManager()
 investigation_orchestrator.broadcast_manager = manager
 from app.services.benchmark_service import benchmark_service
 benchmark_service.broadcast_manager = manager
+n8n_route_state.broadcast_manager = manager
 
 
 
@@ -635,6 +643,40 @@ async def get_investigation_status(
     raise HTTPException(status_code=404, detail=f"No investigation record found for case '{case_id}'")
 
 
+def _mask_email(email: str | None) -> str | None:
+    if not email or "@" not in email:
+        return None
+    local, domain = email.split("@", 1)
+    if len(local) <= 1:
+        return f"{local}***@{domain}"
+    return f"{local[0]}***@{domain}"
+
+
+@app.get("/cases/{case_id}/verification-status")
+async def get_case_verification_status(
+    case_id: str,
+    verification_repo: AbstractVerificationRepository = Depends(get_verification_repository)
+) -> dict[str, Any]:
+    """
+    Returns the latest customer-verification request/response for a case (n8n
+    VerifyFlow). Email is masked and the raw response token is withheld --
+    this is a display endpoint for the analyst workspace, not an auth surface.
+    """
+    records = await verification_repo.get_for_case(case_id)
+    if not records:
+        return {"case_id": case_id, "triggered": False}
+
+    latest = records[0]
+    return {
+        "case_id": case_id,
+        "triggered": True,
+        "verification_id": latest["verification_id"],
+        "status": latest["status"],
+        "reason_summary": latest["reason_summary"],
+        "demo_customer_email_masked": _mask_email(latest.get("demo_customer_email")),
+        "requested_at": latest.get("created_at"),
+        "responded_at": latest.get("response_received_at"),
+    }
 
 
 @app.get("/cases/{case_id}/evidence")
@@ -1629,6 +1671,141 @@ async def execute_operator_freeze(
     return exec_rec
 
 
+class ReleaseRequestPayload(BaseModel):
+    operator_id: Optional[str] = "OPERATOR_ADMIN"
+    reason: str
+
+
+@app.post("/cases/{case_id}/transactions/{transaction_id}/release")
+@app.post("/transactions/{transaction_id}/release")
+async def execute_operator_release(
+    transaction_id: str,
+    case_id: Optional[str] = None,
+    payload: ReleaseRequestPayload = None,
+    repo: AbstractCaseRepository = Depends(get_repository)
+) -> dict[str, Any]:
+    """
+    Human-only release/unfreeze. Cannot be triggered by n8n, the AI agents,
+    a customer webhook, or a timeout -- only an authenticated analyst hitting
+    this endpoint. Mandatory rationale enforced by the ReleaseRequestPayload
+    schema (reason: str, no default).
+    """
+    if not payload or not payload.reason or not payload.reason.strip():
+        raise HTTPException(status_code=422, detail="A non-empty release rationale is required.")
+
+    tx = None
+    if isinstance(repo, PostgreSQLCaseRepository):
+        tx = await repo.get_transaction_by_id(transaction_id)
+    if not tx:
+        tx = data_store.get("transactions", {}).get(transaction_id)
+    if not tx:
+        raise HTTPException(status_code=404, detail=f"Transaction '{transaction_id}' not found.")
+
+    eff_case_id = case_id or tx.get("case_id") or "CASE-SYSTEM"
+    case_obj = None
+    if isinstance(repo, PostgreSQLCaseRepository):
+        case_obj = await repo.get_case_by_id(eff_case_id)
+    if not case_obj:
+        case_obj = data_store.get("cases", {}).get(eff_case_id)
+
+    sender_acc_id = tx.get("sender_account", "ACC-UNKNOWN")
+    acc_obj = data_store.get("accounts", {}).get(sender_acc_id)
+    if not acc_obj or acc_obj.get("status") != "FROZEN":
+        raise HTTPException(status_code=400, detail=f"Account '{sender_acc_id}' is not currently frozen.")
+
+    op_id = payload.operator_id or "OPERATOR_ADMIN"
+    score = float(tx.get("risk_score", 0.0))
+    policy_decision = {
+        "policy_rule_id": "POL-HUMAN-RELEASE",
+        "decision": "EXECUTE",
+        "risk_score": score,
+        "risk_level": tx.get("risk_level", "CRITICAL"),
+        "reason": payload.reason,
+        "automation_enabled": False,
+    }
+
+    from app.services.simulated_action_executor import execute_simulated_action
+    exec_rec = await execute_simulated_action(
+        case_id=eff_case_id,
+        tx_id=transaction_id,
+        action_code="RELEASE",
+        policy_decision=policy_decision,
+        repo=repo,
+        actor_type="HUMAN_OPERATOR",
+        actor_id=op_id
+    )
+
+    if isinstance(repo, PostgreSQLCaseRepository):
+        await repo.session.commit()
+
+    await manager.broadcast({
+        "event": "automation.action.executed",
+        "action": "RELEASE",
+        "action_code": "RELEASE",
+        "transaction_id": transaction_id,
+        "tx_id": transaction_id,
+        "case_id": eff_case_id,
+        "account_id": sender_acc_id,
+        "execution_result": exec_rec,
+        "action_executed": True,
+        "actor_type": "HUMAN_OPERATOR",
+        "actor_id": op_id,
+        "reason": payload.reason,
+        "timestamp": exec_rec.get("timestamp") or _now_iso()
+    })
+
+    await manager.broadcast({
+        "event": "transaction.action",
+        "transaction_id": transaction_id,
+        "tx_id": transaction_id,
+        "risk_score": score,
+        "action": "RELEASE",
+        "action_status": "SUCCESS",
+        "reason": payload.reason,
+        "automated": False,
+        "actor_type": "HUMAN_OPERATOR",
+        "actor_id": op_id,
+        "case_id": eff_case_id,
+        "timestamp": exec_rec.get("timestamp") or _now_iso(),
+        "execution_record": exec_rec
+    })
+
+    if case_obj and exec_rec.get("execution_status") == "SUCCESS":
+        act_entry = {
+            "action_id": f"ACT-{uuid4().hex[:10].upper()}",
+            "case_id": eff_case_id,
+            "action_type": "RELEASE",
+            "action": "RELEASE",
+            "target_id": transaction_id,
+            "status": "SUCCESS",
+            "timestamp": exec_rec.get("timestamp") or _now_iso(),
+            "reason": payload.reason
+        }
+        case_obj.setdefault("actions_taken", []).insert(0, act_entry)
+        await manager.broadcast({"event": "case_updated", **_case_payload(case_obj)})
+
+    return exec_rec
+
+
+@app.get("/accounts/{account_id}/freeze-status")
+def get_account_freeze_status(account_id: str) -> dict[str, Any]:
+    """Read-only freeze attribution for an account (who/when froze or released it)."""
+    acc = data_store.get("accounts", {}).get(account_id)
+    if not acc:
+        raise HTTPException(status_code=404, detail=f"Account '{account_id}' not found.")
+    return {
+        "account_id": account_id,
+        "status": acc.get("status", "ACTIVE"),
+        "frozen": acc.get("status") == "FROZEN",
+        "frozen_by": acc.get("frozen_by"),
+        "frozen_at": acc.get("frozen_at"),
+        "frozen_reason": acc.get("frozen_reason"),
+        "released_by": acc.get("released_by"),
+        "released_at": acc.get("released_at"),
+        "released_reason": acc.get("released_reason"),
+    }
+
+
 @app.post("/action/freeze")
 async def freeze_action(
     payload: ActionRequest,
@@ -1666,6 +1843,47 @@ async def freeze_action(
         res["action_status"] = res.get("execution_status", "SUCCESS")
         res["status"] = res.get("resulting_account_state", "FROZEN")
         res["action"] = "FREEZE"
+    return res
+
+
+@app.post("/action/release")
+async def release_action(
+    payload: ActionRequest,
+    repo: AbstractCaseRepository = Depends(get_repository)
+) -> dict[str, Any]:
+    if not payload.reason or not payload.reason.strip():
+        raise HTTPException(status_code=422, detail="A non-empty release rationale is required.")
+
+    tx_id = payload.target_id or getattr(payload, 'tx_id', None)
+    case_id = payload.case_id
+
+    if not tx_id and case_id:
+        if isinstance(repo, PostgreSQLCaseRepository):
+            case_obj = await repo.get_case_by_id(case_id)
+        else:
+            case_obj = data_store.get("cases", {}).get(case_id)
+
+        if case_obj and case_obj.get("primary_tx_id"):
+            tx_id = case_obj.get("primary_tx_id")
+        else:
+            for t_id, t_obj in data_store.get("transactions", {}).items():
+                if t_obj.get("case_id") == case_id:
+                    tx_id = t_id
+                    break
+
+    if not tx_id:
+        raise HTTPException(status_code=404, detail="No transaction found to release.")
+
+    res = await execute_operator_release(
+        transaction_id=tx_id,
+        case_id=case_id,
+        payload=ReleaseRequestPayload(operator_id=payload.operator_id, reason=payload.reason),
+        repo=repo
+    )
+    if isinstance(res, dict):
+        res["action_status"] = res.get("execution_status", "SUCCESS")
+        res["status"] = res.get("resulting_account_state", "ACTIVE")
+        res["action"] = "RELEASE"
     return res
 
 

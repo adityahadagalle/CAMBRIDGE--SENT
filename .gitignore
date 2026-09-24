@@ -103,3 +103,9 @@ backend/logs/
 SENTINEL_COMPLETE_END_TO_END_DOCUMENTATION.md
 ~$*
 
+# =========================
+# CLAUDE CODE LOCAL SETTINGS
+# =========================
+
+.claude/settings.local.json
+

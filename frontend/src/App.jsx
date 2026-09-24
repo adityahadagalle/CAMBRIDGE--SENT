@@ -17,6 +17,7 @@ import AutomateModeToggle from './components/AutomateModeToggle';
 import PresentationModeToggle from './components/PresentationModeToggle';
 import PresentationModeIndicator from './components/PresentationModeIndicator';
 import LiveAlertToast from './components/LiveAlertToast';
+import CustomerResponseNotification from './components/CustomerResponseNotification';
 
 import ActionTakenToast from './components/ActionTakenToast';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -65,6 +66,7 @@ const App = () => {
         <PresentationModeIndicator />
         <LiveAlertToast />
         <ActionTakenToast />
+        <CustomerResponseNotification />
 
         
         {/* Navigation Sidebar */}

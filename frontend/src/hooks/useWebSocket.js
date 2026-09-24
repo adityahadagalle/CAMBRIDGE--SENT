@@ -9,7 +9,9 @@ const initialState = {
   cases: [],
   actions: [],
   connectionStatus: 'OFFLINE',
-  lastTxEvent: null
+  lastTxEvent: null,
+  verifications: {},
+  notifications: []
 };
 
 
@@ -340,6 +342,52 @@ const handleEvent = (payload = {}) => {
     return;
   }
 
+  if (
+    type === EVENT_TYPES.CUSTOMER_VERIFICATION_REQUESTED ||
+    type === EVENT_TYPES.CUSTOMER_VERIFICATION_RESPONDED
+  ) {
+    const caseId = payload.case_id;
+    if (!caseId) return;
+    setStore((prev) => ({
+      ...prev,
+      verifications: {
+        ...prev.verifications,
+        [caseId]: {
+          ...(prev.verifications[caseId] || {}),
+          verification_id: payload.verification_id,
+          status: payload.status,
+          reason_summary: payload.reason_summary || (prev.verifications[caseId] || {}).reason_summary,
+          responded_at: payload.responded_at || (prev.verifications[caseId] || {}).responded_at,
+          account_frozen: payload.account_frozen !== undefined ? payload.account_frozen : (prev.verifications[caseId] || {}).account_frozen
+        }
+      }
+    }));
+    window.dispatchEvent(new CustomEvent('sentinel_customer_verification', { detail: payload }));
+    return;
+  }
+
+  // Persistent in-app notification: customer responded while the account is
+  // FROZEN. Informational only -- never triggers a freeze/release itself.
+  // Visible regardless of which case the analyst currently has open.
+  if (type === 'customer_response_notification') {
+    const notif = {
+      id: `NOTIF-${payload.case_id}-${payload.timestamp || Date.now()}`,
+      case_id: payload.case_id,
+      transaction_id: payload.transaction_id,
+      account_id: payload.account_id,
+      decision: payload.decision,
+      frozen_by: payload.frozen_by,
+      frozen_at: payload.frozen_at,
+      timestamp: payload.timestamp || new Date().toISOString(),
+      read: false
+    };
+    setStore((prev) => ({
+      ...prev,
+      notifications: [notif, ...prev.notifications].slice(0, 50)
+    }));
+    return;
+  }
+
   if (type === EVENT_TYPES.ACTION_TAKEN) {
     const incoming = normalizeAction(payload);
     setStore((prev) => ({
@@ -417,6 +465,13 @@ const stopRealtime = () => {
   started = false;
   reconnectDelay = 1500;
   pollingFailures = 0;
+};
+
+export const dismissNotification = (notificationId) => {
+  setStore((prev) => ({
+    ...prev,
+    notifications: prev.notifications.filter((n) => n.id !== notificationId)
+  }));
 };
 
 export const useWebSocket = () => {

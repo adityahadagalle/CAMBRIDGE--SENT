@@ -25,7 +25,8 @@
 17. [Google Stitch UI Development](#-google-stitch-ui-development)
 18. [Current Implementation Status](#-current-implementation-status)
 19. [Environment Variables](#-environment-variables)
-20. [Getting Started & Running](#-getting-started--running)
+20. [n8n Automation Layer](#-n8n-automation-layer)
+21. [Getting Started & Running](#-getting-started--running)
 
 ---
 
@@ -587,6 +588,29 @@ The system uses the following environment variables (configured in `.env` or sys
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Base URL for local Ollama HTTP API service. |
 | `OLLAMA_MODEL` | `qwen3:8b` | Ollama model identifier for advisory AI. |
 | `OLLAMA_TIMEOUT` | `60` | HTTP timeout in seconds for Ollama API calls. |
+| `N8N_ENABLED` | `false` | Master kill-switch for all outbound n8n calls. Safe-by-default (off). |
+| `N8N_VERIFYFLOW_TRIGGER_URL` | *(none)* | n8n webhook URL for the VerifyFlow trigger. |
+| `N8N_INVESTIGATION_COMPLETE_TRIGGER_URL` | *(none)* | n8n webhook URL for the Investigation Complete notification. |
+| `N8N_TRIGGER_AUTH_TOKEN` | *(none)* | Shared header value authenticating SENTINEL → n8n calls. |
+| `N8N_WEBHOOK_SECRET` | *(none)* | HMAC-SHA256 shared secret authenticating n8n → SENTINEL callbacks. |
+| `N8N_OUTBOUND_TIMEOUT_SECONDS` | `3` | Bounded timeout for outbound n8n calls. |
+| `N8N_OUTBOUND_MAX_RETRIES` | `2` | Bounded retry count for outbound n8n calls. |
+| `DEMO_MODE` | `true` | Gates the synthetic demo customer email map for VerifyFlow. |
+| `DEMO_VERIFICATION_FALLBACK_EMAIL` | *(none)* | Fallback demo customer email for accounts not in the static map. |
+| `VERIFICATION_TOKEN_TTL_HOURS` | `72` | Expiry window for a customer-verification response link. |
+| `SENTINEL_PUBLIC_BASE_URL` | *(none)* | Publicly reachable URL of this backend, for n8n's callback/health-check calls. |
+
+---
+
+## 🔗 n8n Automation Layer
+
+SENTINEL integrates [n8n](https://n8n.io) as an **external orchestration and communication layer only** — it never makes or executes a fraud decision. Three workflows:
+
+1. **SENTINEL — VerifyFlow**: when investigation evidence indicates verification is warranted, SENTINEL automatically emails the customer a plain-language YES/NO confirmation request; the response is recorded as additional case evidence for the human analyst, never an automatic disposition.
+2. **SENTINEL — Investigation Complete**: fan-out email notification when the 5-agent pipeline finishes. Pure notification — no callback, no case mutation.
+3. **SENTINEL — System Health Monitor**: n8n polls `GET /health` on a schedule and alerts on failure.
+
+Full architecture, event contracts, security model, and setup steps: see [`docs/n8n_integration.md`](docs/n8n_integration.md).
 
 ---
 

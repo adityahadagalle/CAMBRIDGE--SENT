@@ -148,9 +148,7 @@ class InMemoryCaseRepository(AbstractCaseRepository):
         return rpts
 
     async def save_audit_event(self, audit_event_record: Dict[str, Any]) -> bool:
-        if "audit_events" not in self._store:
-            self._store["audit_events"] = []
-        self._store["audit_events"].append(copy.deepcopy(audit_event_record))
+        self._audit_log.append(copy.deepcopy(audit_event_record))
         return True
 
 

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useWebSocket } from '../hooks/useWebSocket';
 import RiskBadge from '../components/RiskBadge';
 import InvestigationSidebar from '../components/InvestigationSidebar';
@@ -201,7 +201,24 @@ const Cases = () => {
   const [filter, setFilter] = useState('ALL');
   const [actionedSubFilter, setActionedSubFilter] = useState('ALL_ACTIONED');
   const [sidebarState, setSidebarState] = useState({ isOpen: false, case: null, tx: null, actions: [] });
+  const [pendingReviewAction, setPendingReviewAction] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const role = getRole();
+
+  // Deep-link support: /cases?case=CASE-ID[&review=release] opens that case's
+  // investigation sidebar directly (used by the in-app customer-response notification).
+  useEffect(() => {
+    const targetCaseId = searchParams.get('case');
+    if (!targetCaseId || !cases.length) return;
+    const target = cases.find((c) => c.case_id === targetCaseId);
+    if (target) {
+      const relatedTx = transactions.find((t) => t.case_id === target.case_id);
+      const relatedActions = actions.filter((a) => a.case_id === target.case_id);
+      setSidebarState({ isOpen: true, case: target, tx: relatedTx, actions: relatedActions });
+      setPendingReviewAction(searchParams.get('review'));
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, cases, transactions, actions, setSearchParams]);
 
   // Final primary filters: ALL, NEW, ACTIONED, CLOSED (HIGH RISK removed)
   const QUEUE_FILTERS = ['ALL', 'NEW', 'ACTIONED', 'CLOSED'];
@@ -570,6 +587,7 @@ const Cases = () => {
         actions={sidebarState.case ? actions.filter(a => a.case_id === sidebarState.case.case_id) : []}
         onClose={() => setSidebarState({ ...sidebarState, isOpen: false })}
         role={role}
+        autoOpenReleaseModal={pendingReviewAction === 'release'}
       />
     </div>
   );

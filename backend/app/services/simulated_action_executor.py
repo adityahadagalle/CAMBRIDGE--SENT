@@ -82,6 +82,12 @@ async def execute_simulated_action(
                 if actor_type == "HUMAN_OPERATOR":
                     resulting_account_state = "FROZEN"
                     acc_obj["status"] = "FROZEN"
+                    acc_obj["frozen_by"] = actor_id
+                    acc_obj["frozen_at"] = timestamp
+                    acc_obj["frozen_reason"] = reason
+                    acc_obj.pop("released_by", None)
+                    acc_obj.pop("released_at", None)
+                    acc_obj.pop("released_reason", None)
                     accounts[sender_acc_id] = acc_obj
                     tx["account_status"] = "FROZEN"
                     if effective_case_id in data_store.get("cases", {}):
@@ -92,6 +98,33 @@ async def execute_simulated_action(
                         for node in data_store["graphs"][effective_case_id].get("nodes", []):
                             if node.get("account_id") == sender_acc_id or node.get("accountId") == sender_acc_id:
                                 node["status"] = "FROZEN"
+                    execution_status = "SUCCESS"
+                    execution_result = "SUCCESS"
+                else:
+                    resulting_account_state = previous_account_state
+                    execution_status = "REQUIRES_OPERATOR_ACTION"
+                    execution_result = "REQUIRES_OPERATOR_ACTION"
+
+            elif action_code == "RELEASE":
+                if actor_type == "HUMAN_OPERATOR":
+                    resulting_account_state = "ACTIVE"
+                    acc_obj["status"] = "ACTIVE"
+                    acc_obj["released_by"] = actor_id
+                    acc_obj["released_at"] = timestamp
+                    acc_obj["released_reason"] = reason
+                    acc_obj.pop("frozen_by", None)
+                    acc_obj.pop("frozen_at", None)
+                    acc_obj.pop("frozen_reason", None)
+                    accounts[sender_acc_id] = acc_obj
+                    tx["account_status"] = "ACTIVE"
+                    if effective_case_id in data_store.get("cases", {}):
+                        for node in data_store["cases"][effective_case_id].get("nodes", []):
+                            if node.get("account_id") == sender_acc_id or node.get("accountId") == sender_acc_id:
+                                node["status"] = "ACTIVE"
+                    if effective_case_id in data_store.get("graphs", {}):
+                        for node in data_store["graphs"][effective_case_id].get("nodes", []):
+                            if node.get("account_id") == sender_acc_id or node.get("accountId") == sender_acc_id:
+                                node["status"] = "ACTIVE"
                     execution_status = "SUCCESS"
                     execution_result = "SUCCESS"
                 else:

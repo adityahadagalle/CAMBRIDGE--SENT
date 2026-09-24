@@ -33,6 +33,20 @@ from app.services.audit_explanation_agent import generate_audit_explanation
 from app.services.analyst_agent import generate_analyst_decision_support
 
 
+def _resolve_verification_repo(repo: AbstractCaseRepository, store: Optional[Dict[str, Any]]):
+    """Builds a verification repository backed by the same session/store as `repo`."""
+    from app.repositories.postgres import PostgreSQLCaseRepository
+    from app.repositories.verification_repository import (
+        InMemoryVerificationRepository,
+        PostgreSQLVerificationRepository,
+    )
+    from app.core.data_store import data_store
+
+    if isinstance(repo, PostgreSQLCaseRepository):
+        return PostgreSQLVerificationRepository(repo.session)
+    return InMemoryVerificationRepository(store if store is not None else data_store)
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -430,6 +444,41 @@ class InvestigationOrchestrator:
                 "investigation_id": inv_id,
                 "summary": record["summary"]
             })
+
+            # ── n8n VerifyFlow: evaluate customer-verification trigger ──────
+            # Fire-and-forget: never awaited inline, so a slow/unreachable n8n
+            # instance cannot block or delay the investigation pipeline.
+            try:
+                from app.services.customer_verification_service import evaluate_and_dispatch
+
+                verification_repo = _resolve_verification_repo(repo, store)
+                asyncio.create_task(evaluate_and_dispatch(
+                    case_id=case_id,
+                    evidence_pkg=evidence_pkg,
+                    contextual_rpt=contextual_rpt,
+                    case_record=case_record,
+                    verification_repo=verification_repo,
+                    broadcast_manager=self.broadcast_manager,
+                ))
+            except Exception as e:
+                print(f"[Orchestrator VerifyFlow] dispatch warning: {e}")
+
+            # ── n8n Investigation Complete: pure fan-out notification ───────
+            try:
+                from app.services.n8n_dispatcher import post_to_n8n
+
+                asyncio.create_task(post_to_n8n(
+                    url=os.getenv("N8N_INVESTIGATION_COMPLETE_TRIGGER_URL"),
+                    json_payload={
+                        "event": "INVESTIGATION_COMPLETED",
+                        "case_id": case_id,
+                        "investigation_id": inv_id,
+                        "summary": record["summary"],
+                    },
+                    headers={"X-Sentinel-Auth": os.getenv("N8N_TRIGGER_AUTH_TOKEN", "")},
+                ))
+            except Exception as e:
+                print(f"[Orchestrator InvestigationComplete] dispatch warning: {e}")
         else:
             await self._emit_event("investigation.degraded", {
                 "case_id": case_id,

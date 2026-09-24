@@ -10,6 +10,7 @@ from app.models.investigation_report import InvestigationReport
 from app.models.investigation_run import InvestigationRun
 from app.models.disposition import Disposition
 from app.models.audit_event import AuditEvent
+from app.models.customer_verification import CustomerVerification
 
 __all__ = [
     "Base",
@@ -19,5 +20,6 @@ __all__ = [
     "InvestigationReport",
     "InvestigationRun",
     "Disposition",
-    "AuditEvent"
+    "AuditEvent",
+    "CustomerVerification"
 ]

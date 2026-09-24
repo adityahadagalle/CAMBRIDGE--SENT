@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Shield, ShieldCheck, ShieldAlert, Activity, ArrowRight, CheckCircle2, 
-  AlertTriangle, HelpCircle, RefreshCw, Send, Sparkles, Scale, BookOpen, 
-  Layers, Check, Info, FileText, CornerDownRight, Lightbulb, Lock, 
+import {
+  Shield, ShieldCheck, ShieldAlert, Activity, ArrowRight, CheckCircle2,
+  AlertTriangle, HelpCircle, RefreshCw, Send, Sparkles, Scale, BookOpen,
+  Layers, Check, Info, FileText, CornerDownRight, Lightbulb, Lock,
   Clock, UserCheck, AlertCircle, ChevronDown, ChevronRight, Eye, Copy,
-  CheckCheck, MessageSquareQuote, GitCommit, FileCheck, ExternalLink
+  CheckCheck, MessageSquareQuote, GitCommit, FileCheck, ExternalLink,
+  MailQuestion
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import FindingChallengeModal from './FindingChallengeModal';
@@ -50,6 +51,14 @@ const AGENT_META = {
     color: 'sky',
     badgeClass: 'bg-sky-500/10 text-sky-400 border-sky-500/30',
     description: 'Formulates policy recommendations, review priorities, and disposition matrix.'
+  },
+  CUSTOMER_VERIFICATION: {
+    key: 'customer_verification',
+    name: 'Customer Verification',
+    icon: MailQuestion,
+    color: 'violet',
+    badgeClass: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
+    description: 'Automated customer YES/NO confirmation (n8n VerifyFlow) recorded as additional case evidence -- never an automatic disposition.'
   }
 };
 

@@ -14,6 +14,11 @@ from app.db.session import get_db_session
 from app.repositories.base import AbstractCaseRepository
 from app.repositories.postgres import PostgreSQLCaseRepository
 from app.repositories.in_memory import InMemoryCaseRepository
+from app.repositories.verification_repository import (
+    AbstractVerificationRepository,
+    InMemoryVerificationRepository,
+    PostgreSQLVerificationRepository,
+)
 from app.core.data_store import data_store
 
 
@@ -37,3 +42,23 @@ def get_repository(
         raise RuntimeError("POSTGRESQL PERSISTENCE FAILURE: Database session unavailable in production mode.")
 
     return InMemoryCaseRepository(data_store)
+
+
+def get_verification_repository(
+    session: Optional[AsyncSession] = Depends(get_db_session)
+) -> AbstractVerificationRepository:
+    """
+    FastAPI Dependency Provider for AbstractVerificationRepository.
+    Mirrors get_repository()'s branching exactly.
+    """
+    sentinel_mode = os.getenv("SENTINEL_MODE", "development").lower()
+    db_url = os.getenv("DATABASE_URL")
+    is_postgres_env = bool(db_url and db_url.startswith("postgresql"))
+
+    if session is not None:
+        return PostgreSQLVerificationRepository(session)
+
+    if sentinel_mode == "production" or is_postgres_env:
+        raise RuntimeError("POSTGRESQL PERSISTENCE FAILURE: Database session unavailable in production mode.")
+
+    return InMemoryVerificationRepository(data_store)

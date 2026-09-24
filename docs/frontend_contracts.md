@@ -73,3 +73,30 @@ Emitted when case metadata (status, risk, window) changes.
 ### `action_taken`
 Emitted when a new action is recorded.
 **Payload:** Full Action Log Object.
+
+### `customer.verification.requested`
+Emitted when SENTINEL automatically triggers an n8n VerifyFlow customer-verification request (see `docs/n8n_integration.md`).
+**Payload:**
+```json
+{
+  "event": "customer.verification.requested",
+  "case_id": "CASE-FRAUD-600",
+  "verification_id": "CV-...",
+  "reason_summary": "This payment is much higher than your recent activity...",
+  "status": "PENDING"
+}
+```
+
+### `customer.verification.responded`
+Emitted when the customer's YES/NO response is received via the n8n VerifyFlow callback. This event never accompanies a case status change — the response is additional evidence only; final disposition still requires a human analyst.
+**Payload:**
+```json
+{
+  "event": "customer.verification.responded",
+  "case_id": "CASE-FRAUD-600",
+  "verification_id": "CV-...",
+  "status": "RESPONDED_YES",
+  "reason_summary": "This payment is much higher than your recent activity...",
+  "responded_at": "2026-09-24T10:05:00Z"
+}
+```
