@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "skills": {
+    "anthropic-frontend-design": {
+      "version": "1.0.2",
+      "installedAt": "2026-09-24T14:20:59.413Z",
+      "platform": "continue"
+    },
+    "alirezarezvani-ui-design-system": {
+      "version": "1.0.1",
+      "installedAt": "2026-09-24T14:21:10.316Z",
+      "platform": "continue"
+    },
+    "design-to-code": {
+      "version": "2.0.350",
+      "installedAt": "2026-09-24T14:21:28.403Z",
+      "platform": "continue"
+    },
+    "alirezarezvani-senior-frontend": {
+      "version": "1.0.2",
+      "installedAt": "2026-09-24T14:21:49.277Z",
+      "platform": "continue"
+    }
+  }
+}
