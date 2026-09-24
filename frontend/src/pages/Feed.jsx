@@ -6,6 +6,7 @@ import InvestigationSidebar from '../components/InvestigationSidebar';
 import AutomationAuditDrawer from '../components/AutomationAuditDrawer';
 import { getRole } from '../roleStore';
 import { maskAccount } from '../utils/maskAccount';
+import { getAnomalyIndicator } from '../utils/anomalyIndicator';
 import {
   Activity, Zap, AlertTriangle, ArrowRight,
   Search, Radio, Lock, X, CheckCircle2,
@@ -249,7 +250,8 @@ const Feed = () => {
           const matchId = (tx.tx_id || '').toLowerCase().includes(q);
           const matchSender = (tx.sender_account || '').toLowerCase().includes(q);
           const matchReceiver = (tx.receiver_account || '').toLowerCase().includes(q);
-          const matchReason = (tx.reason || '').toLowerCase().includes(q);
+          const indicator = getAnomalyIndicator(tx).toLowerCase();
+          const matchReason = (tx.reason || '').toLowerCase().includes(q) || indicator.includes(q);
           if (!matchId && !matchSender && !matchReceiver && !matchReason) return false;
         }
         return true;
@@ -403,14 +405,13 @@ const Feed = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[1450px]">
                   <thead>
-                    <tr className="bg-muted/60 text-[10px] uppercase tracking-wider font-semibold text-slate-400 border-b border-border/80 select-none">
+                    <tr className="bg-muted/60 text-[11px] uppercase tracking-wider font-semibold text-slate-400 border-b border-border/80 select-none">
                       <th className="py-3 px-4 whitespace-nowrap min-w-[140px]">Tx ID</th>
                       <th className="py-3 px-4 text-center whitespace-nowrap min-w-[90px]">Time</th>
                       <th className="py-3 px-4 text-center whitespace-nowrap min-w-[85px]">Channel</th>
                       <th className="py-3 px-4 whitespace-nowrap min-w-[210px]">Sender → Receiver</th>
                       <th className="py-3 px-4 text-right whitespace-nowrap min-w-[110px]">Amount</th>
                       <th className="py-3 px-4 text-center whitespace-nowrap min-w-[130px]">Risk Score</th>
-                      <th className="py-3 px-4 text-center whitespace-nowrap min-w-[140px]">Policy Action</th>
                       <th className="py-3 px-4 text-center whitespace-nowrap min-w-[200px]">Execution Status / Controls</th>
                       <th className="py-3 px-4 text-left whitespace-nowrap min-w-[300px]">Anomaly Indicator</th>
                     </tr>
@@ -420,6 +421,7 @@ const Feed = () => {
                       const dec = tx.response_decision || {};
                       const rec = tx.execution_record || {};
                       const rawScore = Number(tx.risk_score || 0);
+                      const anomalyIndicator = getAnomalyIndicator(tx);
 
                       let actionCode = tx.action || rec.action_code || dec.action;
                       if (!actionCode) {
@@ -440,7 +442,7 @@ const Feed = () => {
                           className={getRowClass(tx)}
                         >
                           {/* TX ID */}
-                          <td className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-200">
+                          <td className="py-3.5 px-4 font-mono text-[14px] font-semibold text-slate-200">
                             <div className="flex items-center gap-1.5">
                               <span>{role === 'admin' ? tx.tx_id : '••••••••'}</span>
                               <button
@@ -452,13 +454,13 @@ const Feed = () => {
                                 className="p-1 rounded bg-[#0A1628] border border-[#1E2E4A] hover:border-sky-400 text-sky-400 hover:text-white transition-all shadow-sm"
                                 title="Investigate in Graph"
                               >
-                                <Network className="w-2.5 h-2.5" />
+                                <Network className="w-3 h-3" />
                               </button>
                             </div>
                             {tx.total_hops && tx.total_hops > 1 && (
                               <div
                                 title={`Pattern: ${tx.pattern_type || 'MULTI-HOP'} | Chain: ${tx.chain_id} | Hop ${tx.hop_number || 1}/${tx.total_hops}`}
-                                className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-500/50 text-[9px] font-mono text-amber-300 font-bold"
+                                className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-500/50 text-[10px] font-mono text-amber-300 font-bold"
                               >
                                 <span>🔗 {tx.total_hops}-HOP CHAIN</span>
                               </div>
@@ -466,52 +468,45 @@ const Feed = () => {
                           </td>
 
                           {/* Time */}
-                          <td className="py-3.5 px-4 text-center font-mono text-xs text-slate-400">
+                          <td className="py-3.5 px-4 text-center font-mono text-[14px] text-slate-400">
                             {formatTime(tx.timestamp)}
                           </td>
 
                           {/* Channel */}
                           <td className="py-3.5 px-4 text-center">
-                            <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60 uppercase">
+                            <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60 uppercase">
                               {tx.channel || 'UPI'}
                             </span>
                           </td>
 
                           {/* Sender → Receiver */}
                           <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-2 text-xs font-mono">
-                              <span className="text-sky-400 font-medium truncate max-w-[90px]" title={tx.sender_account}>
+                            <div className="flex items-center gap-2 text-[14px] font-mono">
+                              <span className="text-sky-400 font-medium truncate max-w-[100px]" title={tx.sender_account}>
                                 {role === 'admin' ? tx.sender_account : maskAccount(tx.sender_account)}
                               </span>
-                              <ArrowRight className="w-3 h-3 text-slate-500 shrink-0" />
-                              <span className="text-sky-400 font-medium truncate max-w-[90px]" title={tx.receiver_account}>
+                              <ArrowRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                              <span className="text-sky-400 font-medium truncate max-w-[100px]" title={tx.receiver_account}>
                                 {role === 'admin' ? tx.receiver_account : maskAccount(tx.receiver_account)}
                               </span>
                             </div>
                           </td>
 
                           {/* Amount */}
-                          <td className="py-3.5 px-4 text-right font-mono text-sm font-semibold text-slate-100">
+                          <td className="py-3.5 px-4 text-right font-mono text-base font-semibold text-slate-100">
                             ₹{Number(tx.amount || 0).toLocaleString('en-IN')}
                           </td>
 
                           {/* Risk Score */}
                           <td className="py-3.5 px-4 text-center">
-                            <RiskBadge score={tx.risk_score} />
-                          </td>
-
-                          {/* Policy Action */}
-                          <td className="py-3.5 px-4 text-center">
-                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-200 px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">
-                              {actionText}
-                            </span>
+                            <RiskBadge score={tx.risk_score} className="!text-[14px]" labelClassName="!text-[10px]" />
                           </td>
 
                           {/* Execution Status / Controls */}
                           <td className="py-3.5 px-4 text-center">
                             {isFreezeAction && !isFrozen ? (
                               <div className="flex flex-col items-center gap-1">
-                                <span className="text-[9px] font-mono font-bold text-amber-400 uppercase tracking-wider">
+                                <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider">
                                   ACTION REQUIRED
                                 </span>
                                 <button
@@ -519,7 +514,7 @@ const Feed = () => {
                                   onClick={(e) => handleOpenFreezeModal(e, tx)}
                                   disabled={isFreezing}
                                   title="Operator approval required — account will be frozen."
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono font-bold bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white shadow-md shadow-rose-950/60 transition-all border border-rose-400/30 hover:border-rose-400/60 disabled:opacity-50 disabled:cursor-not-allowed select-none"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[14px] font-mono font-bold bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white shadow-md shadow-rose-950/60 transition-all border border-rose-400/30 hover:border-rose-400/60 disabled:opacity-50 disabled:cursor-not-allowed select-none"
                                 >
                                   <Lock className="w-3.5 h-3.5" />
                                   <span>{isFreezing ? 'FREEZING...' : 'Freeze'}</span>
@@ -528,7 +523,7 @@ const Feed = () => {
                             ) : rec.execution_status === 'SUCCESS' || rec.execution_status === 'EXECUTED' ? (
                               <div className="flex flex-col items-center justify-center gap-0.5">
                                 <span
-                                  className={`text-[10px] font-mono font-extrabold px-2.5 py-0.5 rounded border uppercase ${
+                                  className={`text-[11px] font-mono font-extrabold px-2.5 py-0.5 rounded border uppercase ${
                                     rec.actor_type === 'HUMAN_OPERATOR' || isHumanOperator
                                       ? 'bg-purple-950/90 text-purple-300 border-purple-600/80'
                                       : 'bg-emerald-950/90 text-emerald-300 border-emerald-600/80'
@@ -536,20 +531,20 @@ const Feed = () => {
                                 >
                                   ACTION TAKEN
                                 </span>
-                                <span className="text-[9px] font-mono text-slate-400 font-medium">
+                                <span className="text-[10px] font-mono text-slate-400 font-medium">
                                   {rec.actor_type === 'HUMAN_OPERATOR' || isHumanOperator ? 'Human Operator' : '⚡ Automation Engine'}
                                 </span>
                               </div>
                             ) : (
                               <div className="flex flex-col items-center gap-1">
-                                <span className="text-[9px] font-mono font-bold text-amber-400 uppercase tracking-wider">
+                                <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider">
                                   ACTION REQUIRED
                                 </span>
                                 <button
                                   type="button"
                                   onClick={(e) => handleManualAction(e, tx, actionCode)}
                                   disabled={executingActionTxIds.has(tx.tx_id)}
-                                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono font-bold text-white shadow-md transition-all select-none ${
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[14px] font-mono font-bold text-white shadow-md transition-all select-none ${
                                     actionCode === 'BLOCK' ? 'bg-rose-700 hover:bg-rose-600' :
                                     actionCode === 'REJECT_TRANSACTION' ? 'bg-rose-800 hover:bg-rose-700' :
                                     actionCode === 'FILE_STR' ? 'bg-purple-600 hover:bg-purple-500' :
@@ -586,9 +581,9 @@ const Feed = () => {
 
                           {/* Anomaly Indicator (CRITICAL REQUIREMENT PRESERVED) */}
                           <td className="py-3.5 px-4 min-w-[300px]">
-                            {tx.reason ? (
+                            {anomalyIndicator && anomalyIndicator !== 'Routine clearing · Baseline verified' ? (
                               <span
-                                className={`text-xs font-mono font-medium leading-relaxed whitespace-normal break-words max-w-[340px] block ${
+                                className={`text-[14px] font-mono font-medium leading-relaxed whitespace-normal break-words max-w-[350px] block ${
                                   rawScore >= 85
                                     ? 'text-rose-400 font-semibold'
                                     : rawScore >= 70
@@ -597,12 +592,12 @@ const Feed = () => {
                                     ? 'text-amber-400'
                                     : 'text-slate-300'
                                 }`}
-                                title={tx.reason}
+                                title={anomalyIndicator}
                               >
-                                {tx.reason}
+                                {anomalyIndicator}
                               </span>
                             ) : (
-                              <span className="text-xs text-slate-500 italic font-mono">
+                              <span className="text-[14px] text-slate-500 italic font-mono" title={anomalyIndicator}>
                                 Routine clearing · Baseline verified
                               </span>
                             )}
@@ -696,7 +691,7 @@ const Feed = () => {
               <div className="flex justify-between"><span className="text-slate-400">Policy Action:</span><span className="text-rose-300 font-bold">FREEZE ACCOUNT</span></div>
               <div className="pt-2 border-t border-slate-800">
                 <span className="text-slate-400 block mb-1">Reason:</span>
-                <span className="text-slate-300 text-xs">{freezeModalState.tx.reason || 'High-risk cross-border activity + velocity anomaly detected'}</span>
+                <span className="text-slate-300 text-xs">{getAnomalyIndicator(freezeModalState.tx)}</span>
               </div>
             </div>
             <div className="p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl flex items-center gap-2.5 text-amber-200">
@@ -741,7 +736,7 @@ const Feed = () => {
               <div className="flex justify-between"><span className="text-slate-400">Risk Score:</span><span className="text-rose-400 font-bold">{actionModalState.tx.risk_score}</span></div>
               <div className="pt-2 border-t border-slate-800">
                 <span className="text-slate-400 block mb-1">Policy Rationale:</span>
-                <span className="text-slate-300 text-xs">{actionModalState.tx.reason || 'Consequential action required under deterministic policy rules.'}</span>
+                <span className="text-slate-300 text-xs">{getAnomalyIndicator(actionModalState.tx)}</span>
               </div>
             </div>
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">

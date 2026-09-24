@@ -8,7 +8,7 @@ import React from 'react';
  * - vertical separator border
  * - uppercase severity label
  */
-const RiskBadge = ({ score, showLabel = true, className = "" }) => {
+const RiskBadge = ({ score, showLabel = true, className = "", labelClassName = "" }) => {
   const getRiskDetails = (s) => {
     if (s >= 85) {
       return {
@@ -42,7 +42,7 @@ const RiskBadge = ({ score, showLabel = true, className = "" }) => {
     >
       <span>{score}</span>
       {showLabel && (
-        <span className="text-[9px] font-sans font-semibold tracking-wider opacity-90 border-l border-current/30 pl-1.5 uppercase">
+        <span className={`text-[9px] font-sans font-semibold tracking-wider opacity-90 border-l border-current/30 pl-1.5 uppercase ${labelClassName}`}>
           {label}
         </span>
       )}

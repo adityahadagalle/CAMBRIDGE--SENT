@@ -483,10 +483,9 @@ const Cases = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[900px]">
               <thead>
-                <tr className="bg-muted/60 text-[10px] uppercase tracking-wider font-semibold text-slate-400 border-b border-border/80 select-none">
+                <tr className="bg-muted/60 text-[11px] uppercase tracking-wider font-semibold text-slate-400 border-b border-border/80 select-none">
                   <th className="py-3.5 px-4">Case ID</th>
                   <th className="py-3.5 px-4">Primary Transaction</th>
-                  <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4 text-center">Risk Level</th>
                   <th className="py-3.5 px-4 text-right">Fraud Value</th>
                   <th className="py-3.5 px-4 text-right">Recoverable</th>
@@ -496,7 +495,7 @@ const Cases = () => {
               <tbody className="divide-y divide-border/60">
                 {filteredCases.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-16 text-center text-slate-400 font-mono text-xs">
+                    <td colSpan={6} className="py-16 text-center text-slate-400 font-mono text-xs">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Briefcase className="w-8 h-8 text-slate-600 mb-1" />
                         <span className="text-slate-300 font-bold text-sm">No cases in {filter} queue</span>
@@ -511,39 +510,25 @@ const Cases = () => {
                   </tr>
                 ) : (
                   filteredCases.map((c) => {
-                    const effStatus = c.effectiveStatus || c.status;
-                    const isClosed = effStatus === 'CLOSED';
-                    const isActioned = effStatus === 'ACTIONED';
-
                     return (
                       <tr
                         key={c.case_id}
                         onClick={() => handleRowClick(c)}
                         className="hover:bg-slate-800/40 transition-colors cursor-pointer border-b border-border/60"
                       >
-                        <td className="py-3.5 px-4 font-mono text-xs font-semibold text-slate-200">
+                        <td className="py-3.5 px-4 font-mono text-[14px] font-semibold text-slate-200">
                           {c.case_id}
                         </td>
-                        <td className="py-3.5 px-4 font-mono text-xs text-slate-400">
+                        <td className="py-3.5 px-4 font-mono text-[14px] text-slate-400">
                           {role === "admin" ? (c.primary_tx_id || 'N/A') : '••••••••'}
                         </td>
-                        <td className="py-3.5 px-4">
-                          <span className={`text-[11px] font-medium px-2.5 py-0.5 rounded border ${isClosed
-                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                              : isActioned
-                                ? 'bg-sky-500/15 text-sky-400 border-sky-500/30 font-semibold'
-                                : 'bg-slate-800 text-slate-300 border-slate-700/60'
-                            }`}>
-                            {formatStatusLabel(effStatus)}
-                          </span>
-                        </td>
                         <td className="py-3.5 px-4 text-center">
-                          <RiskBadge score={c.risk_level} />
+                          <RiskBadge score={c.risk_level} className="!text-[14px]" labelClassName="!text-[10px]" />
                         </td>
-                        <td className="py-3.5 px-4 text-right font-mono text-sm font-semibold text-slate-100">
+                        <td className="py-3.5 px-4 text-right font-mono text-base font-semibold text-slate-100">
                           ₹{(c.total_fraud_amount || 0).toLocaleString()}
                         </td>
-                        <td className="py-3.5 px-4 text-right font-mono text-sm font-semibold text-emerald-400">
+                        <td className="py-3.5 px-4 text-right font-mono text-base font-semibold text-emerald-400">
                           ₹{(c.recoverable_amount || 0).toLocaleString()}
                         </td>
                         <td className="py-3.5 px-4 text-center">
@@ -554,15 +539,15 @@ const Cases = () => {
                                 const url = c.primary_tx_id ? `/graph/${c.case_id}?tx=${c.primary_tx_id}` : `/graph/${c.case_id}`;
                                 navigate(url);
                               }}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700/60 transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[13px] font-medium border border-slate-700/60 transition-colors"
                               title="Open Contextual Investigation Graph"
                             >
-                              <Network className="w-3 h-3 text-sky-400" />
+                              <Network className="w-3.5 h-3.5 text-sky-400" />
                               <span>Graph</span>
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); handleRowClick(c); }}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded bg-primary hover:bg-primary/90 text-white text-xs font-semibold transition-colors shadow-sm"
+                              className="flex items-center gap-1.5 px-3 py-1 rounded bg-primary hover:bg-primary/90 text-white text-[13px] font-semibold transition-colors shadow-sm"
                             >
                               <span>Analyze</span>
                             </button>

@@ -662,18 +662,18 @@ const MLIntelligence = () => {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-400 shrink-0">
-              <Brain style={{ width: 20, height: 20 }} />
+              <Brain style={{ width: 22, height: 22 }} />
             </div>
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-lg font-extrabold tracking-tight text-slate-100">
+                <h1 className="text-xl font-extrabold tracking-tight text-slate-100">
                   ML INTELLIGENCE
                 </h1>
-                <span className="text-xs font-mono font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="text-[13px] font-mono font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                   HYBRID SCORER V16
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-mono mt-1">
+              <p className="text-sm text-slate-400 font-mono mt-1">
                 Rule-Guided ML Emulator · Real-Time Pipeline Visualization
               </p>
             </div>
@@ -683,16 +683,16 @@ const MLIntelligence = () => {
           <div className="flex items-center gap-2.5">
             <button
               onClick={resetAnimation}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold font-mono tracking-wider text-slate-300 hover:text-slate-100 bg-slate-800/70 hover:bg-slate-800 border border-border/70 rounded-xl transition-all duration-150 shadow-sm"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-[13.5px] font-bold font-mono tracking-wider text-slate-300 hover:text-slate-100 bg-slate-800/70 hover:bg-slate-800 border border-border/70 rounded-xl transition-all duration-150 shadow-sm"
               title="Reset ML analysis to initial state"
             >
-              <RotateCcw style={{ width: 13, height: 13 }} /> RESET
+              <RotateCcw style={{ width: 14, height: 14 }} /> RESET
             </button>
 
             <button
               onClick={runMLAnalysis}
               disabled={!selectedTx || isRunning}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-bold font-mono tracking-wider rounded-xl border transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm bg-sky-500/15 hover:bg-sky-500/25 border-sky-500/40 hover:border-sky-400 text-sky-400 hover:text-sky-300"
+              className="flex items-center gap-2 px-4 py-2 text-[13.5px] font-bold font-mono tracking-wider rounded-xl border transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm bg-sky-500/15 hover:bg-sky-500/25 border-sky-500/40 hover:border-sky-400 text-sky-400 hover:text-sky-300"
               style={{
                 background: isRunning ? 'rgba(99,102,241,0.15)' : undefined,
                 borderColor: isRunning ? 'rgba(99,102,241,0.4)' : undefined,
@@ -701,9 +701,9 @@ const MLIntelligence = () => {
               title="Execute full ML intelligence pipeline analysis"
             >
               {loading || isRunning ? (
-                <><Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> {isRunning ? 'PROCESSING' : 'FETCHING'}</>
+                <><Loader2 style={{ width: 15, height: 15 }} className="animate-spin" /> {isRunning ? 'PROCESSING' : 'FETCHING'}</>
               ) : (
-                <><Play style={{ width: 13, height: 13 }} className="fill-current" /> RUN ML ANALYSIS</>
+                <><Play style={{ width: 14, height: 14 }} className="fill-current" /> RUN ML ANALYSIS</>
               )}
             </button>
           </div>
@@ -711,11 +711,11 @@ const MLIntelligence = () => {
 
         {/* Target Transaction Selector */}
         <div className="mt-3.5 flex items-center gap-3 flex-wrap">
-          <span className="text-xs font-mono font-semibold text-slate-400 uppercase tracking-wider shrink-0">Target Transaction</span>
+          <span className="text-[13.5px] font-mono font-semibold text-slate-400 uppercase tracking-wider shrink-0">Target Transaction</span>
           <div className="relative">
             <button
               onClick={() => setShowDropdown(v => !v)}
-              className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-mono bg-muted/40 border border-border/60 rounded-xl hover:border-primary/40 transition-all text-slate-200 min-w-72"
+              className="flex items-center gap-2 px-3.5 py-1.5 text-[13.5px] font-mono bg-muted/40 border border-border/60 rounded-xl hover:border-primary/40 transition-all text-slate-200 min-w-72"
             >
               {selectedTx ? (
                 <>
@@ -728,25 +728,25 @@ const MLIntelligence = () => {
                 </>
               ) : casesLoading ? (
                 <span className="text-slate-500 flex items-center gap-1.5">
-                  <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" /> Loading transactions…
+                  <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> Loading transactions…
                 </span>
               ) : (
                 <span className="text-slate-500">No transactions available</span>
               )}
-              <ChevronDown style={{ width: 14, height: 14, color: '#64748b', marginLeft: 'auto' }} />
+              <ChevronDown style={{ width: 15, height: 15, color: '#64748b', marginLeft: 'auto' }} />
             </button>
             {showDropdown && displayCases.length > 0 && (
               <div className="absolute top-full left-0 mt-1.5 z-50 bg-card border border-border rounded-xl shadow-2xl w-96 max-h-64 overflow-y-auto">
                 {displayCases.map(c => (
                   <div key={c.case_id}>
-                    <div className="px-3.5 py-2 text-xs font-mono font-semibold text-slate-400 bg-muted/30 border-b border-border/40 uppercase tracking-wider">
+                    <div className="px-3.5 py-2 text-[13px] font-mono font-semibold text-slate-400 bg-muted/30 border-b border-border/40 uppercase tracking-wider">
                       {c.case_id} · Risk {Math.round(c.risk_level || 0)}
                     </div>
                     {(c.transactions || []).slice(0, 3).map(tx => (
                       <button
                         key={tx.tx_id}
                         onClick={() => { setSelectedTx(tx); setShowDropdown(false); resetAnimation(); }}
-                        className="w-full flex items-center gap-2 px-3.5 py-2 text-xs font-mono text-left hover:bg-primary/5 transition-all border-b border-border/20"
+                        className="w-full flex items-center gap-2 px-3.5 py-2 text-[13.5px] font-mono text-left hover:bg-primary/5 transition-all border-b border-border/20"
                       >
                         <span className="text-sky-400 font-semibold w-28 shrink-0 truncate">{tx.tx_id}</span>
                         <span className="text-slate-300 font-medium">{formatCurrency(tx.amount)}</span>
@@ -780,23 +780,23 @@ const MLIntelligence = () => {
         {/* ── Pipeline Container ── */}
         <div className="rounded-2xl border border-border/70 bg-card/40 p-5 space-y-4 shadow-sm">
           <div className="flex items-center gap-2 pb-2 border-b border-border/40">
-            <Cpu style={{ width: 16, height: 16, color: '#818cf8' }} />
-            <span className="text-xs font-mono text-slate-200 uppercase tracking-wider font-bold">
+            <Cpu style={{ width: 17, height: 17, color: '#818cf8' }} />
+            <span className="text-sm font-mono text-slate-200 uppercase tracking-wider font-bold">
               ML Processing Pipeline
             </span>
             {isRunning && (
-              <span className="text-xs font-mono font-semibold text-indigo-400 flex items-center gap-1.5 ml-auto">
+              <span className="text-[13px] font-mono font-semibold text-indigo-400 flex items-center gap-1.5 ml-auto">
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#818cf8', display: 'inline-block', animation: 'nnpulse 1s infinite' }} />
                 RUNNING
               </span>
             )}
             {stage === 'complete' && (
-              <span className="text-xs font-mono font-semibold text-emerald-400 flex items-center gap-1.5 ml-auto">
-                <CheckCircle2 style={{ width: 13, height: 13 }} /> COMPLETE
+              <span className="text-[13px] font-mono font-semibold text-emerald-400 flex items-center gap-1.5 ml-auto">
+                <CheckCircle2 style={{ width: 14, height: 14 }} /> COMPLETE
               </span>
             )}
             {stage === 'idle' && (
-              <span className="text-xs font-mono font-semibold text-slate-500 flex items-center gap-1.5 ml-auto">
+              <span className="text-[13px] font-mono font-semibold text-slate-500 flex items-center gap-1.5 ml-auto">
                 <span className="w-2 h-2 rounded-full bg-slate-600 inline-block" /> STANDBY
               </span>
             )}
@@ -821,11 +821,11 @@ const MLIntelligence = () => {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2.5 mb-2.5">
-                  <span className="text-sm font-bold text-slate-100">Transaction Input</span>
+                  <span className="text-base font-bold text-slate-100">Transaction Input</span>
                   {stage !== 'idle' ? (
-                    <span className="text-xs font-mono font-semibold text-sky-400 bg-sky-400/10 border border-sky-400/30 px-2 py-0.5 rounded uppercase">Active</span>
+                    <span className="text-[12px] font-mono font-semibold text-sky-400 bg-sky-400/10 border border-sky-400/30 px-2 py-0.5 rounded uppercase">Active</span>
                   ) : (
-                    <span className="text-xs font-mono text-slate-500 bg-slate-800/40 border border-slate-700/40 px-2 py-0.5 rounded uppercase">Standby</span>
+                    <span className="text-[12px] font-mono text-slate-500 bg-slate-800/40 border border-slate-700/40 px-2 py-0.5 rounded uppercase">Standby</span>
                   )}
                 </div>
                 {selectedTx ? (
@@ -839,12 +839,12 @@ const MLIntelligence = () => {
                       ['Hop #', selectedTx.hop_number || 0, 5],
                     ].map(([k, v, d]) => (
                       <div key={k} className="transition-all duration-300" style={{ opacity: stage !== 'idle' ? 1 : 0.6, transitionDelay: d * 100 + 'ms' }}>
-                        <span className="text-xs font-mono text-slate-400 block font-medium">{k}</span>
-                        <span className="text-xs font-mono text-slate-200 font-semibold truncate block mt-0.5">{v}</span>
+                        <span className="text-[13px] font-mono text-slate-400 block font-medium">{k}</span>
+                        <span className="text-[14px] font-mono text-slate-100 font-semibold truncate block mt-0.5">{v}</span>
                       </div>
                     ))}
                   </div>
-                ) : <span className="text-xs text-slate-500 font-mono">No transaction selected</span>}
+                ) : <span className="text-[13px] text-slate-500 font-mono">No transaction selected</span>}
               </div>
             </div>
           </div>
@@ -870,21 +870,21 @@ const MLIntelligence = () => {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-                  <span className="text-sm font-bold text-slate-100">Feature Extraction</span>
-                  <span className="text-xs font-mono text-slate-400 bg-slate-800/60 border border-slate-700/60 px-2 py-0.5 rounded">Normalized Vector Space</span>
+                  <span className="text-base font-bold text-slate-100">Feature Extraction</span>
+                  <span className="text-[12px] font-mono text-slate-400 bg-slate-800/60 border border-slate-700/60 px-2 py-0.5 rounded">Normalized Vector Space</span>
                   {stage === 'idle' && (
-                    <span className="text-xs font-mono text-slate-500 bg-slate-800/40 border border-slate-700/40 px-2 py-0.5 rounded uppercase ml-auto">
+                    <span className="text-[12px] font-mono text-slate-500 bg-slate-800/40 border border-slate-700/40 px-2 py-0.5 rounded uppercase ml-auto">
                       Standby
                     </span>
                   )}
                   {stage === 'features' && (
-                    <span className="text-xs font-mono font-semibold text-indigo-400 bg-indigo-400/10 border border-indigo-400/30 px-2 py-0.5 rounded uppercase ml-auto">
+                    <span className="text-[12px] font-mono font-semibold text-indigo-400 bg-indigo-400/10 border border-indigo-400/30 px-2 py-0.5 rounded uppercase ml-auto">
                       Extracting
                     </span>
                   )}
                   {hasModelActive && (
-                    <span className="text-xs font-mono font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-2 py-0.5 rounded uppercase flex items-center gap-1 ml-auto">
-                      <CheckCircle2 style={{ width: 12, height: 12 }} /> Done
+                    <span className="text-[12px] font-mono font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-2 py-0.5 rounded uppercase flex items-center gap-1 ml-auto">
+                      <CheckCircle2 style={{ width: 13, height: 13 }} /> Done
                     </span>
                   )}
                 </div>
@@ -905,8 +905,8 @@ const MLIntelligence = () => {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-mono text-slate-200 truncate font-medium">{label}</span>
-                            <span className="text-xs font-mono font-bold ml-1 shrink-0" style={{ color: isActive ? color : '#94a3b8' }}>
+                            <span className="text-[13.5px] font-mono text-slate-200 truncate font-medium">{label}</span>
+                            <span className="text-[14px] font-mono font-bold ml-1 shrink-0" style={{ color: isActive ? color : '#94a3b8' }}>
                               {pctVal}%
                             </span>
                           </div>
@@ -961,33 +961,33 @@ const MLIntelligence = () => {
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-4 pb-3 border-b border-border/40">
                   <div>
                     <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="text-base font-extrabold tracking-tight text-slate-100">
+                      <span className="text-lg font-extrabold tracking-tight text-slate-100">
                         ML Model Inference Engine
                       </span>
-                      <span className="text-[10px] font-mono font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      <span className="text-[11.5px] font-mono font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                         HERO ANALYTICS CORE
                       </span>
                     </div>
-                    <span className="text-xs font-mono text-slate-400 block mt-0.5">
+                    <span className="text-[13.5px] font-mono text-slate-400 block mt-0.5">
                       Multi-Layer Deep Neural Architecture · Continuous Tensor Signal Propagation
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     {stage === 'idle' && (
-                      <span className="text-xs font-mono text-slate-500 bg-slate-800/60 border border-slate-700/60 px-2.5 py-1 rounded-md uppercase">
+                      <span className="text-[13px] font-mono text-slate-500 bg-slate-800/60 border border-slate-700/60 px-2.5 py-1 rounded-md uppercase">
                         Standby
                       </span>
                     )}
                     {stage === 'model' && (
-                      <span className="text-xs font-mono font-bold text-purple-300 bg-purple-500/20 border border-purple-500/40 px-3 py-1 rounded-md uppercase flex items-center gap-1.5 shadow-sm">
+                      <span className="text-[13px] font-mono font-bold text-purple-300 bg-purple-500/20 border border-purple-500/40 px-3 py-1 rounded-md uppercase flex items-center gap-1.5 shadow-sm">
                         <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
                         INFERENCING TENSORS
                       </span>
                     )}
                     {hasImpactActive && (
-                      <span className="text-xs font-mono font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-3 py-1 rounded-md uppercase flex items-center gap-1.5">
-                        <CheckCircle2 style={{ width: 13, height: 13 }} /> CONVERGED
+                      <span className="text-[13px] font-mono font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-3 py-1 rounded-md uppercase flex items-center gap-1.5">
+                        <CheckCircle2 style={{ width: 14, height: 14 }} /> CONVERGED
                       </span>
                     )}
                   </div>
@@ -996,9 +996,9 @@ const MLIntelligence = () => {
                 {/* Hero Visualization Area */}
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr,200px] gap-6 items-center">
                   <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/80">
-                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 px-2 pb-1">
+                    <div className="flex items-center justify-between text-[12.5px] font-mono text-slate-400 px-2 pb-1">
                       <span>Signal Vector Flow</span>
-                      <span className="text-purple-400">Dense Synapse Graph</span>
+                      <span className="text-purple-400 font-medium">Dense Synapse Graph</span>
                     </div>
                     <NeuralNetworkViz activeInputs={activeFeatures} modelActive={modelActive} outputActive={outputActive} />
                   </div>
@@ -1006,25 +1006,25 @@ const MLIntelligence = () => {
                   {/* Architecture Telemetry Panel */}
                   <div className="space-y-2.5">
                     <div className="p-3 rounded-xl bg-slate-900/50 border border-border/50">
-                      <span className="text-[10px] font-mono text-slate-400 block uppercase font-semibold">Topology Architecture</span>
-                      <span className="text-sm font-mono font-bold text-purple-300 block mt-0.5">Dense (6→4→3→2)</span>
-                      <span className="text-[9px] font-mono text-slate-500 block mt-0.5">Non-Linear Rectified Calibration</span>
+                      <span className="text-[12px] font-mono text-slate-400 block uppercase font-semibold">Topology Architecture</span>
+                      <span className="text-[15.5px] font-mono font-bold text-purple-300 block mt-0.5">Dense (6→4→3→2)</span>
+                      <span className="text-[11px] font-mono text-slate-500 block mt-0.5">Non-Linear Rectified Calibration</span>
                     </div>
 
                     <div className="p-3 rounded-xl bg-slate-900/50 border border-border/50">
-                      <span className="text-[10px] font-mono text-slate-400 block uppercase font-semibold">Feature Dimensions</span>
+                      <span className="text-[12px] font-mono text-slate-400 block uppercase font-semibold">Feature Dimensions</span>
                       <div className="flex items-baseline gap-1 mt-0.5">
-                        <span className="text-base font-mono font-bold text-sky-400">6</span>
-                        <span className="text-xs font-mono text-slate-400">Tensors Active</span>
+                        <span className="text-lg font-mono font-bold text-sky-400">6</span>
+                        <span className="text-[13px] font-mono text-slate-400">Tensors Active</span>
                       </div>
                     </div>
 
                     <div className="p-3 rounded-xl bg-slate-900/50 border border-border/50">
-                      <span className="text-[10px] font-mono text-slate-400 block uppercase font-semibold">Inference Confidence</span>
-                      <span className="text-xs font-mono font-bold text-emerald-400 block mt-0.5">
+                      <span className="text-[12px] font-mono text-slate-400 block uppercase font-semibold">Inference Confidence</span>
+                      <span className="text-[14px] font-mono font-bold text-emerald-400 block mt-0.5">
                         {txRuleScore >= 80 ? '±5.0 HIGH ACCURACY' : '±10.0 MID CONFIDENCE'}
                       </span>
-                      <span className="text-[9px] font-mono text-slate-500 block mt-0.5">Simulated On-Chip TPU</span>
+                      <span className="text-[11px] font-mono text-slate-500 block mt-0.5">Simulated On-Chip TPU</span>
                     </div>
                   </div>
                 </div>
@@ -1039,17 +1039,17 @@ const MLIntelligence = () => {
           <div className="rounded-xl border border-border/60 bg-card/40 p-5 space-y-3.5">
             <div className="flex items-center justify-between pb-2 border-b border-border/40">
               <div className="flex items-center gap-2">
-                <Activity style={{ width: 16, height: 16, color: hasImpactActive ? '#f59e0b' : '#64748b' }} />
-                <span className="text-xs font-mono text-slate-200 uppercase tracking-wider font-bold">
+                <Activity style={{ width: 17, height: 17, color: hasImpactActive ? '#f59e0b' : '#64748b' }} />
+                <span className="text-sm font-mono text-slate-200 uppercase tracking-wider font-bold">
                   TOP CONTRIBUTING SIGNALS
                 </span>
               </div>
               {hasImpactActive ? (
-                <span className="text-[10px] font-mono font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="text-[11.5px] font-mono font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
                   RANKED IMPACT
                 </span>
               ) : (
-                <span className="text-[10px] font-mono text-slate-500 bg-slate-800/40 border border-slate-700/40 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="text-[11.5px] font-mono text-slate-500 bg-slate-800/40 border border-slate-700/40 px-2 py-0.5 rounded-full uppercase tracking-wider">
                   STANDBY
                 </span>
               )}
@@ -1061,9 +1061,9 @@ const MLIntelligence = () => {
                 const pctVal = (imp * 100).toFixed(1);
                 return (
                   <div key={feat} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs font-mono">
+                    <div className="flex items-center justify-between text-[13.5px] font-mono">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold w-4 text-slate-400">#{idx + 1}</span>
+                        <span className="text-[12px] font-bold w-4 text-slate-400">#{idx + 1}</span>
                         <div
                           className="w-2.5 h-2.5 rounded-full shrink-0 transition-all duration-300"
                           style={{
@@ -1073,7 +1073,7 @@ const MLIntelligence = () => {
                         />
                         <span className="text-slate-200 font-medium truncate">{cfg.label}</span>
                       </div>
-                      <span className="font-bold font-mono ml-2 shrink-0" style={{ color: hasImpactActive ? cfg.color : '#cbd5e1' }}>
+                      <span className="font-bold font-mono ml-2 shrink-0 text-[14px]" style={{ color: hasImpactActive ? cfg.color : '#cbd5e1' }}>
                         {pctVal}%
                       </span>
                     </div>
@@ -1096,17 +1096,17 @@ const MLIntelligence = () => {
           <div className="rounded-xl border border-border/60 bg-card/40 p-5 space-y-3.5">
             <div className="flex items-center justify-between pb-2 border-b border-border/40">
               <div className="flex items-center gap-2">
-                <TrendingUp style={{ width: 16, height: 16, color: hasImpactActive ? '#818cf8' : '#64748b' }} />
-                <span className="text-xs font-mono text-slate-200 uppercase tracking-wider font-bold">
+                <TrendingUp style={{ width: 17, height: 17, color: hasImpactActive ? '#818cf8' : '#64748b' }} />
+                <span className="text-sm font-mono text-slate-200 uppercase tracking-wider font-bold">
                   ML Impact Analysis
                 </span>
               </div>
               {hasImpactActive ? (
-                <span className="text-[10px] font-mono font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="text-[11.5px] font-mono font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
                   Neural Refinement
                 </span>
               ) : (
-                <span className="text-[10px] font-mono text-slate-400 bg-slate-800/40 border border-slate-700/40 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="text-[11.5px] font-mono text-slate-400 bg-slate-800/40 border border-slate-700/40 px-2 py-0.5 rounded-full uppercase tracking-wider">
                   Baseline Ready
                 </span>
               )}
@@ -1114,9 +1114,9 @@ const MLIntelligence = () => {
 
             {/* Score Adjustment Rail */}
             <div className="p-3.5 rounded-xl bg-slate-900/60 border border-border/50 space-y-2.5">
-              <div className="flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center justify-between text-[13.5px] font-mono">
                 <span className="text-slate-300 font-medium">Score Adjustment Delta:</span>
-                <span className={'font-bold px-2.5 py-0.5 rounded border text-xs ' + (
+                <span className={'font-bold px-2.5 py-0.5 rounded border text-[13.5px] ' + (
                   scoreAdjustment > 0 ? 'bg-rose-500/15 text-rose-300 border-rose-500/30' :
                   scoreAdjustment < 0 ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
                   'bg-slate-800 text-slate-300 border-slate-700'
@@ -1129,28 +1129,28 @@ const MLIntelligence = () => {
               {/* 3-Point Transformation Flow */}
               <div className="grid grid-cols-3 gap-2 text-center font-mono pt-1">
                 <div className="p-2.5 rounded-lg bg-slate-800/50 border border-slate-800">
-                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">1. Rule Engine</span>
-                  <span className="text-base font-bold text-slate-200 block mt-1">{txRuleScore}</span>
-                  <span className="text-[9px] text-slate-500 block">Baseline</span>
+                  <span className="text-[12px] text-slate-400 uppercase tracking-wider block font-semibold">1. Rule Engine</span>
+                  <span className="text-lg font-bold text-slate-200 block mt-1">{txRuleScore}</span>
+                  <span className="text-[11px] text-slate-500 block">Baseline</span>
                 </div>
                 <div className={`p-2.5 rounded-lg border ${hasImpactActive ? 'bg-indigo-950/30 border-indigo-500/30' : 'bg-slate-800/30 border-slate-800/60'}`}>
-                  <span className={`text-[10px] uppercase tracking-wider block font-semibold ${hasImpactActive ? 'text-indigo-300' : 'text-slate-500'}`}>2. ML Refinement</span>
-                  <span className={`text-base font-bold block mt-1 ${hasImpactActive ? 'text-indigo-400' : 'text-slate-600'}`}>
+                  <span className={`text-[12px] uppercase tracking-wider block font-semibold ${hasImpactActive ? 'text-indigo-300' : 'text-slate-500'}`}>2. ML Refinement</span>
+                  <span className={`text-lg font-bold block mt-1 ${hasImpactActive ? 'text-indigo-400' : 'text-slate-600'}`}>
                     {hasImpactActive ? Math.round(txMlScore) : '—'}
                   </span>
-                  <span className={`text-[9px] block ${hasImpactActive ? 'text-indigo-400/70' : 'text-slate-600'}`}>Neural Model</span>
+                  <span className={`text-[11px] block ${hasImpactActive ? 'text-indigo-400/70' : 'text-slate-600'}`}>Neural Model</span>
                 </div>
                 <div className="p-2.5 rounded-lg border" style={{
                   background: hasImpactActive ? afterRisk.hex + '12' : 'rgba(30,41,59,0.3)',
                   borderColor: hasImpactActive ? afterRisk.hex + '35' : 'rgba(51,65,85,0.6)',
                 }}>
-                  <span className="text-[10px] uppercase tracking-wider block font-semibold" style={{ color: hasImpactActive ? afterRisk.hex : '#64748b' }}>
+                  <span className="text-[12px] uppercase tracking-wider block font-semibold" style={{ color: hasImpactActive ? afterRisk.hex : '#64748b' }}>
                     3. Hybrid Result
                   </span>
-                  <span className={`text-base font-bold block mt-1 ${hasImpactActive ? afterRisk.text : 'text-slate-600'}`}>
+                  <span className={`text-lg font-bold block mt-1 ${hasImpactActive ? afterRisk.text : 'text-slate-600'}`}>
                     {hasImpactActive ? Math.round(txFinalScore) : '—'}
                   </span>
-                  <span className="text-[9px] block font-medium" style={{ color: hasImpactActive ? afterRisk.hex + 'cc' : '#64748b' }}>
+                  <span className="text-[11px] block font-medium" style={{ color: hasImpactActive ? afterRisk.hex + 'cc' : '#64748b' }}>
                     Calibrated
                   </span>
                 </div>
@@ -1159,20 +1159,20 @@ const MLIntelligence = () => {
 
             {/* Neural Synthesis Details */}
             <div className="p-3 rounded-xl bg-slate-900/30 border border-border/40 space-y-2">
-              <div className="flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center justify-between text-[13px] font-mono">
                 <span className="text-slate-400">Synthesis Mode</span>
                 <span className="text-slate-300 font-semibold">Rule-Guided Non-Linear Calibrator</span>
               </div>
-              <div className="flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center justify-between text-[13px] font-mono">
                 <span className="text-slate-400">Model Convergence</span>
                 <span className="text-emerald-400 font-semibold">Stable (Pearson r = 0.96)</span>
               </div>
             </div>
 
             {/* Policy Action & Confidence Row */}
-            <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs font-mono flex-wrap gap-2">
+            <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[13.5px] font-mono flex-wrap gap-2">
               <div className="flex items-center gap-2">
-                <ShieldAlert style={{ width: 14, height: 14, color: '#94a3b8' }} />
+                <ShieldAlert style={{ width: 15, height: 15, color: '#94a3b8' }} />
                 <span className="text-slate-400 font-medium">Policy Action:</span>
                 <span className={`font-bold ${hasImpactActive ? 'text-sky-400' : 'text-slate-500'}`}>
                   {hasImpactActive ? ((mlResult?.policy_action || selectedTx?.response_decision?.action || 'MONITOR').replace(/_/g, ' ')) : 'AWAITING INFERENCE'}
@@ -1193,19 +1193,19 @@ const MLIntelligence = () => {
           <div className="flex items-center justify-between px-1 flex-wrap gap-2">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-slate-200 uppercase tracking-wider font-bold">
+                <span className="text-sm font-mono text-slate-200 uppercase tracking-wider font-bold">
                   Analytical Transformation Comparison
                 </span>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700/60">
+                <span className="text-[11.5px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700/60">
                   BASELINE vs ML-ENHANCED
                 </span>
               </div>
-              <span className="text-[11px] font-mono text-slate-500 block mt-0.5">
+              <span className="text-[12.5px] font-mono text-slate-500 block mt-0.5">
                 How machine learning behavioral inference refines deterministic rule decisions
               </span>
             </div>
 
-            <div className="flex items-center gap-2 text-xs font-mono">
+            <div className="flex items-center gap-2 text-[13.5px] font-mono">
               <span className="px-2.5 py-1 rounded-md bg-slate-900/80 border border-slate-800 text-slate-400">
                 Baseline: <strong className={hasComparisonActive ? 'text-slate-200' : 'text-slate-400'}>{txRuleScore}</strong>
               </span>
@@ -1237,19 +1237,19 @@ const MLIntelligence = () => {
                     <div className="w-2.5 h-2.5 rounded-full bg-slate-400 shadow-[0_0_8px_rgba(148,163,184,0.35)]" />
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">
+                        <span className="text-sm font-mono font-bold text-slate-200 uppercase tracking-wider">
                           BEFORE ML
                         </span>
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60 uppercase tracking-wider">
+                        <span className="text-[11.5px] font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/60 uppercase tracking-wider">
                           BASELINE ENGINE
                         </span>
                       </div>
-                      <span className="text-[11px] font-mono text-slate-500">
+                      <span className="text-[12.5px] font-mono text-slate-500">
                         Existing Sentinel Rule Engine
                       </span>
                     </div>
                   </div>
-                  <span className={`text-xs font-mono font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-all duration-300 ${
+                  <span className={`text-[12.5px] font-mono font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-all duration-300 ${
                     stage !== 'idle'
                       ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
                       : 'bg-slate-800/60 text-slate-400 border-slate-700/50'
@@ -1264,11 +1264,11 @@ const MLIntelligence = () => {
                     {/* Primary Deterministic Rule Score Box */}
                     <div className="p-3.5 rounded-xl bg-[#081020]/75 border border-slate-800/80 space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono text-slate-400 uppercase tracking-wider font-semibold">
+                        <span className="text-[13.5px] font-mono text-slate-400 uppercase tracking-wider font-semibold">
                           Deterministic Rule Score
                         </span>
                         <div className="flex items-baseline gap-1.5">
-                          <span className={`text-3xl font-bold font-mono ${hasComparisonActive ? beforeRisk.text : 'text-slate-200'}`}>
+                          <span className={`text-4xl font-bold font-mono ${hasComparisonActive ? beforeRisk.text : 'text-slate-200'}`}>
                             {txRuleScore}
                           </span>
                           <span className="text-xs font-mono text-slate-500 font-normal">/ 100</span>
@@ -1285,7 +1285,7 @@ const MLIntelligence = () => {
                             }}
                           />
                         </div>
-                        <div className="flex justify-between text-[9px] font-mono text-slate-600 px-0.5">
+                        <div className="flex justify-between text-[10.5px] font-mono text-slate-600 px-0.5">
                           <span>0 LOW</span>
                           <span>40 MED</span>
                           <span>70 HIGH</span>
@@ -1295,8 +1295,8 @@ const MLIntelligence = () => {
 
                       <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between flex-wrap gap-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-slate-400 font-medium">Classification:</span>
-                          <span className={`text-xs font-mono font-bold uppercase px-2 py-0.5 rounded border ${
+                          <span className="text-[13px] font-mono text-slate-400 font-medium">Classification:</span>
+                          <span className={`text-[13px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${
                             hasComparisonActive ? (
                               txRuleScore >= 70 ? 'bg-rose-500/10 text-rose-300 border-rose-500/30' :
                               txRuleScore >= 40 ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' :
@@ -1307,8 +1307,8 @@ const MLIntelligence = () => {
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-slate-400 font-medium">Rule Action:</span>
-                          <span className="text-xs font-mono font-semibold text-slate-300">
+                          <span className="text-[13px] font-mono text-slate-400 font-medium">Rule Action:</span>
+                          <span className="text-[13.5px] font-mono font-semibold text-slate-300">
                             {(selectedTx.response_decision?.action || 'MONITOR').replace(/_/g, ' ')}
                           </span>
                         </div>
@@ -1318,10 +1318,10 @@ const MLIntelligence = () => {
                     {/* Active Rule Signals */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono text-slate-400 uppercase tracking-wider font-semibold">
+                        <span className="text-[13.5px] font-mono text-slate-400 uppercase tracking-wider font-semibold">
                           Active Rule Signals
                         </span>
-                        <span className="text-[11px] font-mono text-slate-500">
+                        <span className="text-[12.5px] font-mono text-slate-500">
                           {(selectedTx.risk_factors || []).filter(f => f.contribution > 0).length} active factors
                         </span>
                       </div>
@@ -1333,7 +1333,7 @@ const MLIntelligence = () => {
                             className="flex items-center gap-2.5 p-2 rounded-lg bg-slate-800/30 border border-slate-800/60 transition-all duration-300"
                           >
                             <div className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
-                            <span className="text-xs font-mono text-slate-300 capitalize w-36 truncate font-medium">
+                            <span className="text-[13.5px] font-mono text-slate-300 capitalize w-36 truncate font-medium">
                               {f.name.replace(/_/g, ' ')}
                             </span>
                             <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -1345,7 +1345,7 @@ const MLIntelligence = () => {
                                 }}
                               />
                             </div>
-                            <span className="text-xs font-mono font-bold text-slate-300 w-14 text-right">
+                            <span className="text-[13.5px] font-mono font-bold text-slate-300 w-14 text-right">
                               +{f.contribution} pts
                             </span>
                           </div>
@@ -1354,14 +1354,14 @@ const MLIntelligence = () => {
                     </div>
 
                     {/* Concise Descriptive Note */}
-                    <div className="p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/60 text-[11px] font-mono text-slate-400 leading-relaxed">
+                    <div className="p-2.5 rounded-lg bg-slate-900/40 border border-slate-800/60 text-[12px] font-mono text-slate-400 leading-relaxed">
                       Deterministic detection using existing SENTINEL rules and static risk threshold conditions.
                     </div>
                   </>
                 ) : null}
               </div>
 
-              <div className="pt-3 border-t border-border/40 mt-4 flex items-center justify-between text-[11px] font-mono text-slate-500">
+              <div className="pt-3 border-t border-border/40 mt-4 flex items-center justify-between text-[12px] font-mono text-slate-500">
                 <span>Deterministic Threshold Engine</span>
                 <span>v2.4 Live Core</span>
               </div>
@@ -1401,24 +1401,24 @@ const MLIntelligence = () => {
                 >
                   <Cpu style={{ width: 22, height: 22, color: hasComparisonActive ? '#a5b4fc' : isRunning ? '#38bdf8' : '#64748b' }} />
                 </div>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-200 mt-1.5">
+                <span className="text-[11.5px] font-mono font-bold uppercase tracking-widest text-slate-200 mt-1.5">
                   ML LAYER
                 </span>
-                <span className={`text-[9px] font-mono uppercase tracking-wider font-semibold mt-0.5 ${
+                <span className={`text-[10.5px] font-mono uppercase tracking-wider font-semibold mt-0.5 ${
                   hasCompleteActive ? 'text-indigo-400' : isRunning ? 'text-sky-400' : 'text-slate-500'
                 }`}>
                   {hasCompleteActive ? 'CALIBRATED' : isRunning ? 'SYNTHESIS' : 'STANDBY'}
                 </span>
 
                 {/* Vertical Step Progression Flow */}
-                <div className="flex flex-col items-center gap-0.5 text-[9px] font-mono text-slate-500 mt-2 px-1 py-1 rounded bg-slate-900/60 border border-slate-800/60">
-                  <span className="text-[8px] uppercase tracking-wider text-slate-400">BASELINE</span>
+                <div className="flex flex-col items-center gap-0.5 text-[9.5px] font-mono text-slate-500 mt-2 px-1 py-1 rounded bg-slate-900/60 border border-slate-800/60">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-400">BASELINE</span>
                   <span className="font-bold text-slate-300">{txRuleScore}</span>
                   <ArrowDown className="w-2.5 h-2.5 text-slate-600" />
-                  <span className="text-[8px] uppercase tracking-wider text-indigo-400">ML SCORE</span>
+                  <span className="text-[9px] uppercase tracking-wider text-indigo-400">ML SCORE</span>
                   <span className={`font-bold ${hasComparisonActive ? 'text-indigo-400' : 'text-slate-400'}`}>{Math.round(txMlScore)}</span>
                   <ArrowDown className="w-2.5 h-2.5 text-slate-600" />
-                  <span className="text-[8px] uppercase tracking-wider text-slate-400">HYBRID</span>
+                  <span className="text-[9px] uppercase tracking-wider text-slate-400">HYBRID</span>
                   <span className={`font-bold ${hasComparisonActive ? afterRisk.text : 'text-slate-400'}`}>{Math.round(txFinalScore)}</span>
                 </div>
               </div>
@@ -1467,13 +1467,13 @@ const MLIntelligence = () => {
                     <div>
                       <div className="flex items-center gap-2">
                         <span
-                          className="text-xs font-mono font-bold uppercase tracking-wider transition-colors duration-300"
+                          className="text-sm font-mono font-bold uppercase tracking-wider transition-colors duration-300"
                           style={{ color: hasComparisonActive ? '#e2e8f0' : '#94a3b8' }}
                         >
                           AFTER ML
                         </span>
                         <span
-                          className="text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wider transition-all duration-300"
+                          className="text-[11.5px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wider transition-all duration-300"
                           style={{
                             background: hasComparisonActive ? 'rgba(99,102,241,0.18)' : 'rgba(30,41,59,0.8)',
                             color: hasComparisonActive ? '#a5b4fc' : '#64748b',
@@ -1483,14 +1483,14 @@ const MLIntelligence = () => {
                           HYBRID MODEL
                         </span>
                       </div>
-                      <span className="text-[11px] font-mono text-slate-500">
+                      <span className="text-[12.5px] font-mono text-slate-500">
                         Multi-Factor Neural Calibration
                       </span>
                     </div>
                   </div>
 
                   <span
-                    className="text-xs font-mono font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-all duration-500"
+                    className="text-[12.5px] font-mono font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition-all duration-500"
                     style={{
                       background: hasCompleteActive ? 'rgba(16,185,129,0.12)' : isRunning ? 'rgba(99,102,241,0.12)' : 'rgba(30,41,59,0.6)',
                       borderColor: hasCompleteActive ? 'rgba(16,185,129,0.35)' : isRunning ? 'rgba(99,102,241,0.35)' : 'rgba(51,65,85,0.5)',
@@ -1498,9 +1498,9 @@ const MLIntelligence = () => {
                     }}
                   >
                     {hasCompleteActive ? (
-                      <><CheckCircle2 style={{ width: 12, height: 12 }} /> RESOLVED</>
+                      <><CheckCircle2 style={{ width: 13, height: 13 }} /> RESOLVED</>
                     ) : isRunning ? (
-                      <><Loader2 style={{ width: 12, height: 12 }} className="animate-spin" /> INFERRING</>
+                      <><Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> INFERRING</>
                     ) : (
                       <>AWAITING INFERENCE</>
                     )}
@@ -1510,11 +1510,11 @@ const MLIntelligence = () => {
                 {/* Primary Dual Scores: ML Model Score & Calibrated Hybrid */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="p-3 rounded-xl bg-[#081020]/80 border border-slate-800 space-y-1.5">
-                    <span className="text-xs font-mono uppercase tracking-wider font-semibold block text-slate-400">
+                    <span className="text-[13px] font-mono uppercase tracking-wider font-semibold block text-slate-400">
                       ML Model Score
                     </span>
                     <div className="flex items-baseline gap-1.5">
-                      <span className={`text-2xl font-bold font-mono ${hasComparisonActive ? 'text-indigo-400' : 'text-slate-300'}`}>
+                      <span className={`text-3xl font-bold font-mono ${hasComparisonActive ? 'text-indigo-400' : 'text-slate-300'}`}>
                         {Math.round(txMlScore)}
                       </span>
                       <span className="text-xs font-mono text-slate-500">/ 100</span>
@@ -1528,7 +1528,7 @@ const MLIntelligence = () => {
                         }}
                       />
                     </div>
-                    <span className="text-[10px] font-mono text-slate-400 block pt-0.5">
+                    <span className="text-[11.5px] font-mono text-slate-400 block pt-0.5">
                       Neural Evaluation
                     </span>
                   </div>
@@ -1537,11 +1537,11 @@ const MLIntelligence = () => {
                     className="p-3 rounded-xl bg-[#081020]/80 border space-y-1.5 transition-all duration-500"
                     style={{ borderColor: hasComparisonActive ? afterRisk.hex + '45' : 'rgba(51,65,85,0.6)' }}
                   >
-                    <span className="text-xs font-mono uppercase tracking-wider font-semibold block text-slate-400">
+                    <span className="text-[13px] font-mono uppercase tracking-wider font-semibold block text-slate-400">
                       Calibrated Hybrid
                     </span>
                     <div className="flex items-baseline gap-1.5">
-                      <span className={`text-2xl font-bold font-mono ${hasComparisonActive ? afterRisk.text : 'text-slate-300'}`}>
+                      <span className={`text-3xl font-bold font-mono ${hasComparisonActive ? afterRisk.text : 'text-slate-300'}`}>
                         {Math.round(txFinalScore)}
                       </span>
                       <span className="text-xs font-mono text-slate-500">/ 100</span>
@@ -1555,7 +1555,7 @@ const MLIntelligence = () => {
                         }}
                       />
                     </div>
-                    <span className={`text-[10px] font-mono font-bold uppercase block pt-0.5 ${hasComparisonActive ? afterRisk.text : 'text-slate-400'}`}>
+                    <span className={`text-[11.5px] font-mono font-bold uppercase block pt-0.5 ${hasComparisonActive ? afterRisk.text : 'text-slate-400'}`}>
                       {hasComparisonActive ? `${getRiskLabel(Math.round(txFinalScore))} SEVERITY` : 'STANDBY'}
                     </span>
                   </div>
@@ -1565,12 +1565,12 @@ const MLIntelligence = () => {
                 <div className="p-3 rounded-xl bg-[#081020]/80 border border-slate-800/80 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <Sparkles className={`w-3.5 h-3.5 ${hasComparisonActive ? 'text-indigo-400' : 'text-slate-500'}`} />
-                      <span className="text-xs font-mono text-slate-200 uppercase tracking-wider font-bold">
+                      <Sparkles className={`w-4 h-4 ${hasComparisonActive ? 'text-indigo-400' : 'text-slate-500'}`} />
+                      <span className="text-[13.5px] font-mono text-slate-200 uppercase tracking-wider font-bold">
                         WHAT ML ADDED
                       </span>
                     </div>
-                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border uppercase tracking-wider transition-all duration-300 ${
+                    <span className={`text-[11.5px] font-mono font-bold px-2 py-0.5 rounded border uppercase tracking-wider transition-all duration-300 ${
                       hasComparisonActive
                         ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30'
                         : 'bg-slate-800 text-slate-400 border-slate-700/60'
@@ -1581,8 +1581,8 @@ const MLIntelligence = () => {
 
                   {/* Score Calibration Delta */}
                   <div className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-800/70">
-                    <span className="text-xs font-mono text-slate-400 font-medium">Analytical Calibration Delta:</span>
-                    <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${
+                    <span className="text-[13px] font-mono text-slate-400 font-medium">Analytical Calibration Delta:</span>
+                    <span className={`text-[13px] font-mono font-bold px-2 py-0.5 rounded border ${
                       hasComparisonActive ? (
                         finalDelta > 0 ? 'bg-rose-500/15 text-rose-300 border-rose-500/30' :
                         finalDelta < 0 ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
@@ -1597,14 +1597,14 @@ const MLIntelligence = () => {
 
                   {/* Top ML Weighted Signals */}
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                    <div className="flex items-center justify-between text-[12px] font-mono text-slate-400">
                       <span>Top ML-Derived Signals</span>
                       <span>Weight</span>
                     </div>
                     {topFeatures.slice(0, 3).map(([key, weight], idx) => (
                       <div key={key} className="flex items-center gap-2 p-1.5 rounded-md bg-slate-800/30 border border-slate-800/50">
-                        <span className="text-[10px] font-mono font-bold text-slate-500 w-4">#{idx + 1}</span>
-                        <span className="text-xs font-mono text-slate-300 flex-1 truncate font-medium">
+                        <span className="text-[11.5px] font-mono font-bold text-slate-500 w-4">#{idx + 1}</span>
+                        <span className="text-[13px] font-mono text-slate-300 flex-1 truncate font-medium">
                           {FEATURE_CONFIG[key]?.label || key}
                         </span>
                         <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -1616,7 +1616,7 @@ const MLIntelligence = () => {
                             }}
                           />
                         </div>
-                        <span className="text-xs font-mono font-bold text-slate-300 w-12 text-right">
+                        <span className="text-[13px] font-mono font-bold text-slate-300 w-12 text-right">
                           {(weight * 100).toFixed(1)}%
                         </span>
                       </div>
@@ -1624,7 +1624,7 @@ const MLIntelligence = () => {
                   </div>
 
                   {/* Behavioral Pattern Refinement note */}
-                  <div className="text-[11px] font-mono text-slate-400 leading-relaxed pt-0.5">
+                  <div className="text-[12px] font-mono text-slate-400 leading-relaxed pt-0.5">
                     Non-linear behavioral pattern inference & multi-dimensional signal calibration.
                   </div>
                 </div>
@@ -1632,13 +1632,13 @@ const MLIntelligence = () => {
                 {/* Supporting ML Policy Action & Confidence Row */}
                 <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/30 border border-slate-800/60 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
-                    <ShieldAlert style={{ width: 14, height: 14, color: '#94a3b8' }} />
-                    <span className="text-xs font-mono text-slate-400 font-medium">ML Policy Action:</span>
-                    <span className={`text-xs font-mono font-bold ${hasComparisonActive ? 'text-sky-400' : 'text-slate-300'}`}>
+                    <ShieldAlert style={{ width: 15, height: 15, color: '#94a3b8' }} />
+                    <span className="text-[13.5px] font-mono text-slate-400 font-medium">ML Policy Action:</span>
+                    <span className={`text-[13.5px] font-mono font-bold ${hasComparisonActive ? 'text-sky-400' : 'text-slate-300'}`}>
                       {(mlResult?.policy_action || selectedTx?.response_decision?.action || 'MONITOR').replace(/_/g, ' ')}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs font-mono text-slate-500 ml-auto">
+                  <div className="flex items-center gap-1.5 text-[13.5px] font-mono text-slate-500 ml-auto">
                     <span>Confidence:</span>
                     <span className={`font-semibold ${hasComparisonActive ? 'text-slate-200' : 'text-slate-400'}`}>
                       {mlResult?.confidence || selectedTx?.confidence || 'HIGH'}
@@ -1647,7 +1647,7 @@ const MLIntelligence = () => {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-border/40 mt-4 flex items-center justify-between text-[11px] font-mono text-slate-500">
+              <div className="pt-3 border-t border-border/40 mt-4 flex items-center justify-between text-[12px] font-mono text-slate-500">
                 <span>Hybrid Scorer V16</span>
                 <span>Rule-Guided Emulator</span>
               </div>
@@ -1677,30 +1677,30 @@ const MLIntelligence = () => {
               <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-base font-bold text-slate-100">Prediction Output</span>
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700/60">
+                    <span className="text-lg font-bold text-slate-100">Prediction Output</span>
+                    <span className="text-[11.5px] font-mono font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700/60">
                       FINAL DECISION LAYER
                     </span>
                   </div>
-                  <span className="text-xs font-mono text-slate-400 block mt-0.5">
+                  <span className="text-[13px] font-mono text-slate-400 block mt-0.5">
                     Synthesized Neural Risk Prediction & Calibrated Policy Action
                   </span>
                 </div>
 
                 <div>
                   {stage === 'idle' && (
-                    <span className="text-xs font-mono text-slate-400 bg-slate-800/60 border border-slate-700/60 px-2.5 py-1 rounded uppercase">
+                    <span className="text-[12.5px] font-mono text-slate-400 bg-slate-800/60 border border-slate-700/60 px-2.5 py-1 rounded uppercase">
                       Baseline Ready
                     </span>
                   )}
                   {stage === 'prediction' && (
-                    <span className="text-xs font-mono font-semibold text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 px-2.5 py-1 rounded uppercase flex items-center gap-1.5">
+                    <span className="text-[12.5px] font-mono font-semibold text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 px-2.5 py-1 rounded uppercase flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-ping" /> Resolving
                     </span>
                   )}
                   {hasCompleteActive && (
-                    <span className="text-xs font-mono font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-2.5 py-1 rounded uppercase flex items-center gap-1">
-                      <CheckCircle2 style={{ width: 12, height: 12 }} /> Resolved
+                    <span className="text-[12.5px] font-mono font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-2.5 py-1 rounded uppercase flex items-center gap-1">
+                      <CheckCircle2 style={{ width: 13, height: 13 }} /> Resolved
                     </span>
                   )}
                 </div>
@@ -1714,8 +1714,8 @@ const MLIntelligence = () => {
                     ['Classification', getRiskLabel(Math.round(txFinalScore)), afterRisk.hex, false],
                   ].map(([label, value, color, showBar]) => (
                     <div key={label} className="p-3.5 rounded-xl border bg-card/60 text-center" style={{ borderColor: afterRisk.hex + '28' }}>
-                      <span className="text-xs font-mono text-slate-400 block mb-1 font-medium">{label}</span>
-                      <span className="text-2xl font-bold font-mono" style={{ color }}>{value}</span>
+                      <span className="text-[13.5px] font-mono text-slate-400 block mb-1 font-medium">{label}</span>
+                      <span className="text-3xl font-bold font-mono" style={{ color }}>{value}</span>
                       {showBar && (
                         <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden mt-2">
                           <div className="h-full rounded-full transition-all duration-500" style={{ width: Math.min(100, Math.max(0, value)) + '%', background: color }} />
@@ -1732,8 +1732,8 @@ const MLIntelligence = () => {
                     ['Classification', getRiskLabel(Math.round(txFinalScore)), afterRisk.hex, false],
                   ].map(([label, value, color, showBar]) => (
                     <div key={label} className="p-3.5 rounded-xl border border-slate-800/70 bg-card/40 text-center">
-                      <span className="text-xs font-mono text-slate-400 block mb-1 font-medium">{label}</span>
-                      <span className="text-2xl font-bold font-mono" style={{ color }}>{value}</span>
+                      <span className="text-[13.5px] font-mono text-slate-400 block mb-1 font-medium">{label}</span>
+                      <span className="text-3xl font-bold font-mono" style={{ color }}>{value}</span>
                       {showBar && (
                         <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden mt-2">
                           <div className="h-full rounded-full transition-all duration-500" style={{ width: Math.min(100, Math.max(0, value)) + '%', background: color }} />
@@ -1752,14 +1752,14 @@ const MLIntelligence = () => {
           <div className="flex items-center gap-6">
             {[['Model', 'SENTINEL_HYBRID_SCORER_V16'], ['Engine', 'Rule-Guided Emulator'], ['Features', '6 dimensions'], ['Correlation', 'Pearson r > 0.95']].map(([k, v]) => (
               <div key={k}>
-                <span className="text-xs font-mono text-slate-500 block font-medium">{k}</span>
-                <span className="text-xs font-mono text-slate-300 font-semibold">{v}</span>
+                <span className="text-[12.5px] font-mono text-slate-500 block font-medium">{k}</span>
+                <span className="text-[13.5px] font-mono text-slate-300 font-semibold">{v}</span>
               </div>
             ))}
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500" style={{ animation: 'nnpulse 2s infinite' }} />
-            <span className="text-xs font-mono text-emerald-400 font-semibold">ML ENGINE OPERATIONAL</span>
+            <span className="text-[13px] font-mono text-emerald-400 font-semibold">ML ENGINE OPERATIONAL</span>
           </div>
         </div>
       </div>

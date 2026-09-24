@@ -11,7 +11,6 @@ import GoldenTimer from './GoldenTimer';
 import AnalystEvidenceViewer from './AnalystEvidenceViewer';
 import GraphCanvas from '../modules/GraphModule/GraphCanvas';
 import InvestigationWorkflowGraph from './InvestigationWorkflowGraph';
-import HumanCollaborationWorkspace from './HumanCollaborationWorkspace';
 import AutomationAuditDrawer from './AutomationAuditDrawer';
 import { maskAccount } from '../utils/maskAccount';
 
@@ -51,7 +50,7 @@ const InvestigationSidebar = ({
   const [showAiPanel, setShowAiPanel] = useState(false);
 
   // ── Action / Freeze State ────────────────────────────────────────────────
-  const [workspaceViewMode, setWorkspaceViewMode] = useState('collaboration'); // 'collaboration' | 'topology'
+  const [workspaceViewMode, setWorkspaceViewMode] = useState('topology'); // 'topology'
   const [showAuditDrawer, setShowAuditDrawer] = useState(false);
   const [auditDataForDrawer, setAuditDataForDrawer] = useState(null);
   const [isAccountFrozen, setIsAccountFrozen] = useState(
@@ -452,46 +451,17 @@ const InvestigationSidebar = ({
 
           {/* Header Action Controls */}
           <div className="flex items-center gap-3">
-            {/* View Mode Toggle: Collaboration vs Topology */}
+            {/* TOPOLOGY Tab / Button */}
             <div className="flex items-center p-1 bg-[#060D1A] border border-[#1E293B] rounded-lg font-mono text-[10px] font-bold">
               <button
                 type="button"
-                onClick={() => setWorkspaceViewMode('collaboration')}
-                className={twMerge(
-                  "px-3 py-1 rounded-md transition-all flex items-center gap-1.5 cursor-pointer",
-                  workspaceViewMode === 'collaboration'
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/30 font-black"
-                    : "text-slate-400 hover:text-slate-200"
-                )}
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>COLLABORATION</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setWorkspaceViewMode('topology')}
-                className={twMerge(
-                  "px-3 py-1 rounded-md transition-all flex items-center gap-1.5 cursor-pointer",
-                  workspaceViewMode === 'topology'
-                    ? "bg-slate-700 text-slate-100 font-black"
-                    : "text-slate-400 hover:text-slate-200"
-                )}
+                className="px-3 py-1 rounded-md transition-all flex items-center gap-1.5 bg-blue-600 text-white shadow-md shadow-blue-500/30 font-black cursor-pointer"
               >
                 <Network className="w-3.5 h-3.5" />
                 <span>TOPOLOGY</span>
               </button>
             </div>
-
-            {/* Audit Dossier Quick Access */}
-            <button
-              type="button"
-              onClick={() => setShowAuditDrawer(true)}
-              className="px-2.5 py-1.5 rounded-lg bg-[#060D1A] hover:bg-[#1E293B] text-sky-400 border border-[#1E293B] hover:border-sky-500/40 font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-              title="Inspect Automation & Collaboration Audit Dossier"
-            >
-              <FileText className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden sm:inline">AUDIT DOSSIER</span>
-            </button>
 
             {/* Close Button */}
             <button 
@@ -504,52 +474,9 @@ const InvestigationSidebar = ({
           </div>
         </header>
 
-        {/* ── SECTION B & C: PRIMARY SCROLLABLE WORKSPACE ──────────────────── */}
+        {/* ── PRIMARY SCROLLABLE WORKSPACE: TOPOLOGY ONLY ──────────────────── */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          {workspaceViewMode === 'collaboration' ? (
-            <HumanCollaborationWorkspace
-              caseId={caseId}
-              selectedCase={selectedCase}
-              selectedTransaction={selectedTransaction}
-              investigationReadModel={investigationReadModel}
-              timelineStages={timelineStages}
-              role={role}
-              onClose={onClose}
-              onOpenAuditDossier={(customAuditData) => {
-                if (customAuditData) {
-                  setAuditDataForDrawer(customAuditData);
-                }
-                setShowAuditDrawer(true);
-              }}
-              onDispositionComplete={(dispData) => {
-                if (dispData?.action_code === 'RECOMMEND_ACCOUNT_FREEZE') {
-                  setIsAccountFrozen(true);
-                }
-                if (dispData) {
-                  setAuditDataForDrawer({
-                    execution_record: {
-                      transaction_id: txId,
-                      tx_id: txId,
-                      case_id: caseId,
-                      action_status: 'EXECUTED',
-                      mode: 'HUMAN_ADJUDICATION',
-                      timestamp: new Date().toISOString(),
-                      action_code: dispData.action_code,
-                      ai_recommended_action: dispData.ai_recommended_action || recommendationText?.split(':')[0]?.trim(),
-                      is_human_override: dispData.is_human_override || false,
-                      override_rationale: dispData.override_rationale || '',
-                      collaborative_inquiry_log: dispData.collaborative_inquiry_log || [],
-                      requires_human_approval: true
-                    }
-                  });
-                }
-                setActionSuccessMsg(`Disposition ${dispData?.action_code || ''} confirmed.`);
-                setTimeout(() => setActionSuccessMsg(null), 4000);
-              }}
-            />
-          ) : (
-            <>
-              {/* 1. PRIMARY VIEWPORT: 60/40 SPLIT (GRAPH + SUMMARY) */}
+          {/* 1. PRIMARY VIEWPORT: 60/40 SPLIT (GRAPH + SUMMARY) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-[380px]">
             
             {/* Left Column (60%): Cytoscape Network Graph */}
@@ -820,8 +747,6 @@ const InvestigationSidebar = ({
                 </div>
               )}
             </div>
-          )}
-            </>
           )}
         </div>
 
