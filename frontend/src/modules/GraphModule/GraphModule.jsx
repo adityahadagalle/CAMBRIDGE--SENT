@@ -9,7 +9,7 @@ import './GraphModule.css';
 import { getRole } from '../../roleStore';
 import { 
   ZoomIn, ZoomOut, Maximize2, RotateCcw, Crosshair, 
-  Search, Layers, X, Zap, Map, GitCommit,
+  Search, Layers, X, Zap, GitCommit,
   AlertTriangle, Activity, TrendingUp, Shield,
   ChevronRight, Clock, Eye, Brain, Cpu, WifiOff, Timer
 } from 'lucide-react';
@@ -177,45 +177,6 @@ const CompactLegend = ({ isOpen, onToggle }) => (
   </div>
 );
 
-// ── MINIMAP ──────────────────────────────────────────────────────────────────
-const Minimap = ({ nodes, edges }) => (
-  <div className="w-52 h-32 bg-[#0A0F17]/95 border border-[#1E293B] rounded shadow-2xl" style={{ backdropFilter: 'blur(8px)' }}>
-    <div className="flex justify-between items-center px-2.5 py-1.5 border-b border-[#1E293B]">
-      <span className="flex items-center gap-1 text-[9px] font-['Hanken_Grotesk'] font-semibold text-slate-500 uppercase tracking-widest">
-        <Map className="w-2.5 h-2.5 text-[#38BDF8]" /> MINIMAP
-      </span>
-      <span className="text-[8px] font-['JetBrains_Mono'] text-slate-600">{nodes.length}N · {edges.length}E</span>
-    </div>
-    <div className="w-full" style={{ height: 'calc(100% - 28px)', padding: '4px' }}>
-      <svg className="w-full h-full">
-        {edges.map((e, i) => {
-          const hop = e.hop_number || (i % 4);
-          const x1 = Math.min(hop * 40 + 15, 175);
-          const y1 = (i % 3) === 0 ? 15 : (i % 3) === 1 ? 35 : 55;
-          const x2 = Math.min(hop * 40 + 48, 195);
-          const y2 = ((i + 1) % 3) === 0 ? 15 : ((i + 1) % 3) === 1 ? 35 : 55;
-          return (
-            <line key={`me-${i}`} x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke={e.suspicious ? '#EF4444' : '#38BDF8'}
-              strokeWidth="1" opacity="0.6"
-              strokeDasharray={e.suspicious ? '3,2' : undefined} />
-          );
-        })}
-        {nodes.map((n, i) => {
-          const layer = n.layer || (i % 4);
-          const cx = Math.min(layer * 40 + 15, 195);
-          const cy = (i % 3) === 0 ? 15 : (i % 3) === 1 ? 35 : 55;
-          const fill = n.node_type === 'victim' ? '#2563EB'
-            : n.node_type === 'mule' ? '#DC2626'
-            : n.node_type === 'collector' ? '#D97706'
-            : n.node_type === 'crypto' ? '#7C3AED'
-            : '#475569';
-          return <circle key={`mn-${i}`} cx={cx} cy={cy} r="4" fill={fill} />;
-        })}
-      </svg>
-    </div>
-  </div>
-);
 
 // ── RISK-BASED TOPOLOGY & NODE-COUNT GOVERNOR ─────────────────────────────────
 //
@@ -643,10 +604,6 @@ const GraphModule = ({ caseData, selectedTxId, actions = [], onAction, connectio
             <CompactLegend isOpen={legendOpen} onToggle={() => setLegendOpen(o => !o)} />
           </div>
 
-          {/* BOTTOM-RIGHT: Minimap */}
-          <div className="absolute bottom-16 right-3 z-20">
-            <Minimap nodes={displayNodes} edges={displayEdges} />
-          </div>
 
           {/* CENTERED INVESTIGATION BRIEF MODAL (QWEN AI) */}
           {briefModalOpen && (
