@@ -12,7 +12,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: #0B132B;
+  background: #071126;
 }
 
 .graph-canvas canvas {
@@ -24,16 +24,16 @@
   width: 4px;
   height: 4px;
 }
-::-webkit-scrollbar-track { background: #020617; }
-::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #334155; }
+::-webkit-scrollbar-track { background: #060B1A; }
+::-webkit-scrollbar-thumb { background: #1C2E52; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #253D6E; }
 
 /* ── GRAPH HOVER GLOW (SENTINEL TERMINAL INTERACTIVE RULE) ─────────────────── */
 .sentinel-ctrl-btn {
   transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 .sentinel-ctrl-btn:hover {
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+  box-shadow: 0 0 8px rgba(36, 91, 255, 0.35);
 }
 
 /* ── LIVE PULSE ANIMATION ───────────────────────────────────────────────────── */
@@ -52,6 +52,6 @@
 
 /* ── DOT GRID BACKGROUND ────────────────────────────────────────────────────── */
 .sentinel-dot-grid {
-  background-image: radial-gradient(circle, #1E293B 1px, transparent 1px);
+  background-image: radial-gradient(circle, #14264A 1px, transparent 1px);
   background-size: 20px 20px;
 }

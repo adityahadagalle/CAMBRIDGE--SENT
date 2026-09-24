@@ -213,11 +213,11 @@ const RiskScoreTrend = ({ transactions = [], connectionStatus = 'LIVE', onSelect
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={liveData} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
             <defs>
-              {/* Deep Rich Blue Area Gradient (Exact Sentinel Spec) */}
+              {/* Deep Royal Blue into Dark Navy Area Gradient (SkyFort Spec) */}
               <linearGradient id="riskScoreAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1E40AF" stopOpacity={0.88} />
-                <stop offset="50%" stopColor="#1A3F75" stopOpacity={0.78} />
-                <stop offset="100%" stopColor="#0B1A38" stopOpacity={0.65} />
+                <stop offset="0%" stopColor="#245BFF" stopOpacity={0.85} />
+                <stop offset="50%" stopColor="#14264A" stopOpacity={0.65} />
+                <stop offset="100%" stopColor="#0B1730" stopOpacity={0.40} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#1A2640" strokeOpacity={0.6} vertical={false} />
@@ -272,11 +272,11 @@ const RiskScoreTrend = ({ transactions = [], connectionStatus = 'LIVE', onSelect
             <Area
               type="monotone"
               dataKey="score"
-              stroke="#38BDF8"
+              stroke="#356BFF"
               strokeWidth={2.2}
               fill="url(#riskScoreAreaGradient)"
               isAnimationActive={false}
-              activeDot={{ r: 5, fill: '#38BDF8', stroke: '#070D1A', strokeWidth: 2 }}
+              activeDot={{ r: 5, fill: '#356BFF', stroke: '#060B1A', strokeWidth: 2 }}
             />
           </AreaChart>
         </ResponsiveContainer>

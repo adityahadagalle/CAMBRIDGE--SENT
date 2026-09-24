@@ -3,26 +3,28 @@
 @tailwind utilities;
 
 :root {
-  /* SENTINEL dark SOC palette from friend's exact reference */
-  --background: 222 47% 4%;        /* #080D18 Deep dark navy */
-  --foreground: 210 40% 98%;       /* #F8FAFC Clean primary text */
-  --card: 220 42% 7%;              /* #0C1424 Dark navy surface */
-  --card-foreground: 210 40% 98%;
-  --popover: 220 42% 7%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 217 91% 60%;          /* #3B82F6 Electric blue accent */
+  /* SENTINEL Deep Midnight Navy & Royal Blue Reference Palette (matching SkyFort design) */
+  --background: 224 68% 6.2%;        /* #060B1A Primary Deep Midnight Navy */
+  --foreground: 215 35% 97%;         /* #F4F7FB Clean high-contrast text */
+  --card: 221 62% 11.5%;             /* #0B1730 Rich dark navy panel surface */
+  --card-foreground: 215 35% 97%;
+  --popover: 221 60% 11%;            /* #0A152E Rich popover surface */
+  --popover-foreground: 215 35% 97%;
+  --primary: 224 100% 57%;           /* #245BFF Royal / Electric Blue accent */
   --primary-foreground: 0 0% 100%;
-  --secondary: 219 38% 11%;        /* #0E1A2C Slate dark surface */
-  --secondary-foreground: 210 40% 98%;
-  --muted: 219 38% 11%;
-  --muted-foreground: 215 20% 55%; /* #7C8CA0 Slate metadata */
-  --accent: 219 38% 13%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 84% 60%;        /* #EF4444 Critical red */
-  --destructive-foreground: 210 40% 98%;
-  --border: 218 37% 16%;           /* #1A2640 Subtle border */
-  --input: 218 37% 14%;
-  --ring: 217 91% 60%;
+  --secondary: 220 58% 15%;          /* #101F3D Slate dark blue surface */
+  --secondary-foreground: 215 35% 97%;
+  --muted: 221 56% 12.5%;            /* #0D1933 Muted dark navy surface */
+  --muted-foreground: 218 24% 60%;   /* #7E94B5 Cool navy-slate metadata */
+  --accent: 220 57% 18.5%;           /* #14264A Lighter blue surface */
+  --accent-foreground: 215 35% 97%;
+  --destructive: 0 84% 60%;          /* #EF4444 Semantic Critical Red */
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 46% 21%;             /* #1C2E52 Clean navy border */
+  --input: 221 58% 10.5%;            /* #0A1428 Dark navy input */
+  --ring: 224 100% 57%;              /* #245BFF Royal / Electric Blue */
+  --accent-violet: 245 74% 60%;      /* #5B4EF5 Secondary Accent: subtle blue-violet */
+  --accent-plum: 320 45% 15%;        /* #38142D Restrained burgundy/warm dark-purple */
 }
 
 @layer base {
@@ -31,6 +33,12 @@
   }
   body {
     @apply bg-background text-foreground font-sans antialiased selection:bg-primary/30 selection:text-primary-foreground;
+    background-color: #060B1A;
+    background-image:
+      radial-gradient(ellipse 90% 50% at 50% -20%, rgba(36, 91, 255, 0.09), transparent 70%),
+      radial-gradient(ellipse 60% 45% at 100% 100%, rgba(70, 20, 58, 0.06), transparent 60%),
+      radial-gradient(ellipse 50% 35% at 0% 100%, rgba(81, 70, 216, 0.06), transparent 50%);
+    background-attachment: fixed;
   }
 }
 
@@ -41,22 +49,22 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #060B1A;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(36, 91, 255, 0.22);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(36, 91, 255, 0.45);
 }
 
 /* Animation for new row arrival in stream */
 @keyframes newRowEntry {
   0% {
-    background-color: rgba(56, 189, 248, 0.18);
+    background-color: rgba(36, 91, 255, 0.22);
   }
   100% {
     background-color: transparent;
@@ -109,5 +117,34 @@
   .text-\[12px\] { font-size: 13.2px !important; }
   .text-\[12\.5px\] { font-size: 13.7px !important; }
   .text-\[14px\] { font-size: 15.2px !important; }
+
+  /* ── REFERENCE COLOR THEME (SkyFort) UTILITY REMAPPINGS ───────────────────── */
+  /* Surfaces & Containers */
+  .bg-\[\#0B132B\], .bg-\[\#0B132B\]\/90 { background-color: rgba(11, 23, 48, 0.95) !important; }
+  .bg-\[\#081020\] { background-color: #081126 !important; }
+  .bg-\[\#0A1628\] { background-color: #0C1A38 !important; }
+  .bg-\[\#0C1424\] { background-color: #0B1730 !important; }
+  .bg-\[\#080D18\] { background-color: #060B1A !important; }
+  .bg-\[\#060B15\], .bg-\[\#060B14\], .bg-\[\#040812\], .bg-\[\#03060C\], .bg-\[\#020617\], .bg-\[\#0A0F1D\], .bg-\[\#0A0F17\] {
+    background-color: #060B1A !important;
+  }
+  .bg-\[\#0E172B\], .bg-\[\#0E1A2C\] { background-color: #101F3D !important; }
+
+  /* Borders */
+  .border-\[\#1E293B\], .border-\[\#1E293B\]\/80, .border-\[\#1E293B\]\/60, .border-\[\#1E293B\]\/40 {
+    border-color: rgba(28, 46, 82, 0.75) !important;
+  }
+  .border-\[\#1E2E4A\] { border-color: #213660 !important; }
+  .border-\[\#1A2640\] { border-color: #1C2E52 !important; }
+
+  /* Accents & Cyan Elimination -> Royal / Electric Sky Blue */
+  .text-sky-400, .text-\[\#38BDF8\] { color: #4A7CFF !important; }
+  .text-cyan-400, .text-\[\#06b6d4\], .text-cyan-300 { color: #356BFF !important; }
+  .border-cyan-400, .border-cyan-500\/30, .border-cyan-500\/60 { border-color: rgba(36, 91, 255, 0.45) !important; }
+  .bg-cyan-950\/30, .bg-cyan-500\/10, .bg-cyan-500\/20 { background-color: rgba(36, 91, 255, 0.12) !important; }
+  .ring-cyan-500\/30 { --tw-ring-color: rgba(36, 91, 255, 0.35) !important; }
+  .bg-sky-500\/10, .bg-sky-500\/15 { background-color: rgba(36, 91, 255, 0.12) !important; }
+  .bg-sky-500\/20 { background-color: rgba(36, 91, 255, 0.18) !important; }
+  .border-sky-500\/20, .border-sky-500\/30, .border-sky-500\/40 { border-color: rgba(36, 91, 255, 0.35) !important; }
 }
 

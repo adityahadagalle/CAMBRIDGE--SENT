@@ -344,7 +344,7 @@ const RealRiskScoreTrendChart = React.memo(({ riskTrend = [], avgRiskScore = 0, 
       ? '#F43F5E'
       : isHigh
       ? '#FB923C'
-      : '#06b6d4';
+      : '#245BFF';
 
     return (
       <g key="latest-live-point" className="pointer-events-none">
@@ -444,8 +444,8 @@ const RealRiskScoreTrendChart = React.memo(({ riskTrend = [], avgRiskScore = 0, 
               <defs>
                 {/* Gradient with progressive reveal fade-in */}
                 <linearGradient id="riskScoreGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4 * fillFade} />
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+                  <stop offset="5%" stopColor="#245BFF" stopOpacity={0.4 * fillFade} />
+                  <stop offset="95%" stopColor="#245BFF" stopOpacity={0.0} />
                 </linearGradient>
 
                 {/* 1. & 8. Progressive Left-to-Right Reveal ClipPath */}
@@ -484,7 +484,7 @@ const RealRiskScoreTrendChart = React.memo(({ riskTrend = [], avgRiskScore = 0, 
               <Area 
                 type="monotone" 
                 dataKey="avg_score" 
-                stroke="#06b6d4" 
+                stroke="#245BFF" 
                 strokeWidth={2} 
                 fillOpacity={1} 
                 fill="url(#riskScoreGrad)" 

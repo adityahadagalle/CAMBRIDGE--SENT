@@ -22,7 +22,7 @@ export const CenterFlow = ({
   nodeSize = 56,
   nodeDistance = 0.72,
   lineWidth = 1.5,
-  lineColor = '#06b6d4',
+  lineColor = '#245BFF',
   pulseWidth = 2.5,
   pulseDuration = 3,
   pulseInterval = 1.5,
@@ -82,9 +82,9 @@ export const CenterFlow = ({
         <defs>
           {/* Radial Center Glow Gradient */}
           <radialGradient id="center-hub-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#06b6d4" stopOpacity={maxGlowIntensity * 0.3} />
-            <stop offset="70%" stopColor="#0B132B" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="#060B15" stopOpacity="0" />
+            <stop offset="0%" stopColor="#245BFF" stopOpacity={maxGlowIntensity * 0.3} />
+            <stop offset="70%" stopColor="#0B1730" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="#060B1A" stopOpacity="0" />
           </radialGradient>
 
           {/* Glowing Filters */}

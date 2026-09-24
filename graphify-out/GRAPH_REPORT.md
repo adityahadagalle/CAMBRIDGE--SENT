@@ -1,7 +1,7 @@
 # Graph Report - sentinel  (2026-09-24)
 
 ## Corpus Check
-- 357 files · ~378,596 words
+- 357 files · ~378,679 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
