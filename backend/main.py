@@ -452,6 +452,10 @@ async def process_tx(
 
     await repo.save_transaction_and_case(accounts_to_save, transaction, case)
 
+    if "transactions" not in data_store:
+        data_store["transactions"] = {}
+    data_store["transactions"][transaction.get("tx_id")] = transaction
+
     policy_decision, execution_record = await _process_policy_and_action(transaction, case, repo=repo)
     result["execution_record"] = execution_record
 
@@ -2087,22 +2091,35 @@ async def get_analytics_overview(
     Returns comprehensive AML Intelligence & Risk Analytics Telemetry
     aggregated across live data_store and persisted repository metrics.
     """
-    tx_list = list(data_store.get("transactions", {}).values())
-    if not tx_list and isinstance(repo, AbstractCaseRepository):
+    # Merge transactions and cases from data_store and repo deduplicated by id
+    tx_map = {}
+    if isinstance(repo, AbstractCaseRepository):
         try:
-            tx_list = await repo.get_all_transactions()
+            for t in await repo.get_all_transactions():
+                if isinstance(t, dict) and t.get("tx_id"):
+                    tx_map[t["tx_id"]] = t
         except Exception:
-            tx_list = []
+            pass
+    for t in data_store.get("transactions", {}).values():
+        if isinstance(t, dict) and t.get("tx_id"):
+            tx_map[t["tx_id"]] = t
+    tx_list = list(tx_map.values())
 
-    cases_list = list(data_store.get("cases", {}).values())
-    if not cases_list and isinstance(repo, AbstractCaseRepository):
+    cases_map = {}
+    if isinstance(repo, AbstractCaseRepository):
         try:
-            cases_list = await repo.get_cases()
+            for c in await repo.get_cases():
+                if isinstance(c, dict) and c.get("case_id"):
+                    cases_map[c["case_id"]] = c
         except Exception:
-            cases_list = []
+            pass
+    for c in data_store.get("cases", {}).values():
+        if isinstance(c, dict) and c.get("case_id"):
+            cases_map[c["case_id"]] = c
+    cases_list = list(cases_map.values())
 
     # Apply timeframe filter if transactions have timestamps
-    if tx_list and timeframe:
+    if timeframe and tx_list:
         from datetime import timedelta
         now_utc = datetime.now(timezone.utc)
         tf_delta = {
@@ -2123,11 +2140,16 @@ async def get_analytics_overview(
                 except Exception:
                     return None
 
-            timed_txs = [t for t in tx_list if parse_tx_time(t) is not None]
-            if timed_txs:
-                in_range = [t for t in timed_txs if parse_tx_time(t) >= cutoff]
-                if in_range:
-                    tx_list = in_range
+            filtered_txs = []
+            for t in tx_list:
+                ttime = parse_tx_time(t)
+                if ttime is not None:
+                    if ttime >= cutoff:
+                        filtered_txs.append(t)
+                elif timeframe in ("30d", "12m"):
+                    # Fallback for transactions without timestamp
+                    filtered_txs.append(t)
+            tx_list = filtered_txs
 
     total_tx = len(tx_list)
     risk_alerts = [t for t in tx_list if float(t.get("risk_score", 0)) >= 40]
