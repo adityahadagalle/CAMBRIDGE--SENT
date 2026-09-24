@@ -412,7 +412,6 @@ const Feed = () => {
                       <th className="py-3 px-4 text-center whitespace-nowrap min-w-[130px]">Risk Score</th>
                       <th className="py-3 px-4 text-center whitespace-nowrap min-w-[140px]">Policy Action</th>
                       <th className="py-3 px-4 text-center whitespace-nowrap min-w-[200px]">Execution Status / Controls</th>
-                      <th className="py-3 px-4 text-center whitespace-nowrap min-w-[110px]">Account</th>
                       <th className="py-3 px-4 text-left whitespace-nowrap min-w-[300px]">Anomaly Indicator</th>
                     </tr>
                   </thead>
@@ -583,20 +582,6 @@ const Feed = () => {
                                 </button>
                               </div>
                             )}
-                          </td>
-
-                          {/* Account */}
-                          <td className="py-3.5 px-4 text-center">
-                            <span
-                              className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded uppercase flex items-center justify-center gap-1 mx-auto ${
-                                isFrozen
-                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                                  : 'bg-slate-800 text-slate-300 border border-slate-700'
-                              }`}
-                            >
-                              {isFrozen && <Lock className="w-3 h-3 text-rose-400 shrink-0" />}
-                              {accountStatus}
-                            </span>
                           </td>
 
                           {/* Anomaly Indicator (CRITICAL REQUIREMENT PRESERVED) */}

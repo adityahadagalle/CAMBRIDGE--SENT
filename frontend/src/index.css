@@ -106,17 +106,17 @@
 
 /* Typography Scale Elevation — Calibrated ~5% boost for presentation & demo screen clarity */
 @layer utilities {
-  .text-\[7\.5px\] { font-size: 8.2px !important; }
-  .text-\[8px\] { font-size: 9px !important; }
-  .text-\[8\.5px\] { font-size: 9.5px !important; }
-  .text-\[9px\] { font-size: 10.2px !important; }
-  .text-\[9\.5px\] { font-size: 10.7px !important; }
-  .text-\[10px\] { font-size: 11.3px !important; }
-  .text-\[10\.5px\] { font-size: 11.8px !important; }
-  .text-\[11px\] { font-size: 12.35px !important; }
-  .text-\[12px\] { font-size: 13.2px !important; }
-  .text-\[12\.5px\] { font-size: 13.7px !important; }
-  .text-\[14px\] { font-size: 15.2px !important; }
+  .text-\[7\.5px\] { font-size: 8.6px !important; }
+  .text-\[8px\] { font-size: 9.5px !important; }
+  .text-\[8\.5px\] { font-size: 10px !important; }
+  .text-\[9px\] { font-size: 10.75px !important; }
+  .text-\[9\.5px\] { font-size: 11.25px !important; }
+  .text-\[10px\] { font-size: 11.9px !important; }
+  .text-\[10\.5px\] { font-size: 12.4px !important; }
+  .text-\[11px\] { font-size: 13.0px !important; }
+  .text-\[12px\] { font-size: 13.9px !important; }
+  .text-\[12\.5px\] { font-size: 14.4px !important; }
+  .text-\[14px\] { font-size: 16.0px !important; }
 
   /* ── REFERENCE COLOR THEME (SkyFort) UTILITY REMAPPINGS ───────────────────── */
   /* Surfaces & Containers */
