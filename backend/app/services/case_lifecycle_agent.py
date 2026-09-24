@@ -124,7 +124,11 @@ class CaseLifecycleService:
         analyst_id: str = "ANALYST-001",
         analyst_role: str = "COMPLIANCE_ANALYST",
         risk_acknowledged: bool = False,
-        idempotency_key: Optional[str] = None
+        idempotency_key: Optional[str] = None,
+        is_human_override: Optional[bool] = False,
+        ai_recommended_action: Optional[str] = None,
+        override_rationale: Optional[str] = None,
+        collaborative_inquiry_log: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         # 1. Identity Context Validation
         clean_analyst_id = (analyst_id or "").strip()
@@ -232,6 +236,16 @@ class CaseLifecycleService:
                 "acknowledged": False
             }
 
+        # Human Override Integrity Validation (Phase 1)
+        clean_override_rationale = (override_rationale or "").strip()
+        if is_human_override and not clean_override_rationale:
+            return {
+                "ok": False,
+                "status": "INVALID_INPUT",
+                "error": "Human override requires a non-empty override_rationale explaining why the AI recommendation was overridden.",
+                "acknowledged": False
+            }
+
         # 4. Strict Case & Transaction Boundary Validation
         clean_case_id = (case_id or "").strip()
         if not clean_case_id:
@@ -332,6 +346,13 @@ class CaseLifecycleService:
         disp_id = f"DSP-{uuid4().hex[:8].upper()}"
         audit_id = f"AUD-{uuid4().hex[:8].upper()}"
 
+        clean_ai_rec = (ai_recommended_action or "").strip()
+        if not clean_ai_rec and decision_support_report:
+            offered_options = decision_support_report.get("disposition_options", [])
+            rec_opt = next((o for o in offered_options if isinstance(o, dict) and o.get("recommended")), None)
+            if rec_opt:
+                clean_ai_rec = rec_opt.get("action_code", "")
+
         disposition_record = {
             "disposition_id": disp_id,
             "case_id": clean_case_id,
@@ -345,7 +366,11 @@ class CaseLifecycleService:
             "previous_case_status": current_status,
             "new_case_status": target_status,
             "idempotency_key": clean_idempotency_key,
-            "disposition_timestamp": timestamp
+            "disposition_timestamp": timestamp,
+            "is_human_override": bool(is_human_override),
+            "ai_recommended_action": clean_ai_rec or None,
+            "override_rationale": clean_override_rationale or None,
+            "collaborative_inquiry_log": collaborative_inquiry_log or [],
         }
 
         audit_event = {
@@ -370,7 +395,13 @@ class CaseLifecycleService:
                 "supporting_regulatory_ids": sorted(list(supp_reg_ids)),
                 "supporting_context_finding_ids": sorted(list(supp_ctx_finding_ids)),
                 "supporting_context_pattern_ids": sorted(list(supp_ctx_pattern_ids)),
-                "supporting_evidence_ids": sorted(list(supp_ev_ids))
+                "supporting_evidence_ids": sorted(list(supp_ev_ids)),
+                "human_override": {
+                    "is_override": bool(is_human_override),
+                    "ai_recommended_action": clean_ai_rec or None,
+                    "override_rationale": clean_override_rationale or None,
+                },
+                "collaborative_inquiry_log": collaborative_inquiry_log or []
             }
         }
 
@@ -439,7 +470,11 @@ def submit_case_disposition(
     risk_acknowledged: bool = False,
     store: Optional[Dict[str, Any]] = None,
     repository: Optional[AbstractCaseRepository] = None,
-    idempotency_key: Optional[str] = None
+    idempotency_key: Optional[str] = None,
+    is_human_override: Optional[bool] = False,
+    ai_recommended_action: Optional[str] = None,
+    override_rationale: Optional[str] = None,
+    collaborative_inquiry_log: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """
     Synchronous entrypoint wrapper for backward compatibility across Phase 1–6 tests.
@@ -455,7 +490,11 @@ def submit_case_disposition(
         analyst_id=analyst_id,
         analyst_role=analyst_role,
         risk_acknowledged=risk_acknowledged,
-        idempotency_key=idempotency_key
+        idempotency_key=idempotency_key,
+        is_human_override=is_human_override,
+        ai_recommended_action=ai_recommended_action,
+        override_rationale=override_rationale,
+        collaborative_inquiry_log=collaborative_inquiry_log,
     ))
 
 

@@ -96,3 +96,10 @@ out/
 *.csv
 backend/export/
 backend/logs/
+
+# =========================
+# EXCLUDED DOCUMENTATION
+# =========================
+SENTINEL_COMPLETE_END_TO_END_DOCUMENTATION.md
+~$*
+

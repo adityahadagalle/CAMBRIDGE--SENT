@@ -111,7 +111,23 @@ class TestPostgreSQLAuditImmutabilityLive(unittest.TestCase):
         cls.db_url = os.getenv("DATABASE_URL")
         if not cls.db_url:
             cls.db_url = get_database_url(async_driver=True)
-        cls.is_postgres = cls.db_url and cls.db_url.startswith("postgresql")
+        cls.is_postgres = False
+        if cls.db_url and cls.db_url.startswith("postgresql"):
+            try:
+                from app.db.session import get_async_engine
+                from sqlalchemy import text
+                import asyncio
+                async def _probe():
+                    eng = get_async_engine(cls.db_url)
+                    try:
+                        async with eng.connect() as conn:
+                            await conn.execute(text("SELECT 1"))
+                        return True
+                    finally:
+                        await eng.dispose()
+                cls.is_postgres = asyncio.run(_probe())
+            except Exception:
+                cls.is_postgres = False
 
     def setUp(self):
         if not self.is_postgres:

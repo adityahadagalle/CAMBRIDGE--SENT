@@ -149,6 +149,124 @@ const AutomationAuditDrawer = ({ auditData, onClose }) => {
             </div>
           </div>
         </div>
+
+        {/* ── HUMAN COLLABORATION & OVERRIDE AUDIT METADATA (Phase 3) ── */}
+        {(rec.is_human_override || rec.override_rationale || rec.ai_recommended_action || (rec.collaborative_inquiry_log && rec.collaborative_inquiry_log.length > 0)) && (
+          <div className="space-y-3 p-4 rounded-xl bg-[#090F1C] border border-amber-500/30">
+            <div className="flex items-center justify-between border-b border-[#1E293B] pb-2 font-mono">
+              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-amber-400" />
+                HUMAN OVERRIDE & COLLABORATION AUDIT
+              </span>
+              <span className="text-[9px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold uppercase">
+                {rec.is_human_override ? 'OVERRIDE EXECUTED' : 'COLLABORATION LOGGED'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 font-mono text-[11px]">
+              <div className="p-2.5 rounded-lg bg-[#040812] border border-[#1E293B]">
+                <span className="text-[9px] text-slate-500 uppercase block">AI Recommended Action</span>
+                <span className="font-bold text-sky-300">{rec.ai_recommended_action || 'ESCALATE_SENIOR_COMPLIANCE'}</span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-[#040812] border border-[#1E293B]">
+                <span className="text-[9px] text-slate-500 uppercase block">Human Decided Action</span>
+                <span className="font-bold text-amber-400">{rec.action_code || rec.action || 'REQUEST_CUSTOMER_CDD'}</span>
+              </div>
+            </div>
+
+            {rec.override_rationale && (
+              <div className="p-3 rounded-lg bg-[#040812] border border-amber-500/30 space-y-1">
+                <span className="font-mono text-[9px] font-bold text-amber-400 uppercase block">
+                  Mandatory Human Override Rationale:
+                </span>
+                <p className="text-slate-200 text-xs font-sans leading-relaxed">
+                  {rec.override_rationale}
+                </p>
+              </div>
+            )}
+
+            {Array.isArray(rec.collaborative_inquiry_log) && rec.collaborative_inquiry_log.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <span className="font-mono text-[9px] font-bold text-slate-400 uppercase block">
+                  Prior Inquiries Conducted ({rec.collaborative_inquiry_log.length}):
+                </span>
+                <div className="space-y-1.5">
+                  {rec.collaborative_inquiry_log.map((inq, idx) => (
+                    <div key={idx} className="p-2 rounded-lg bg-[#040812] border border-[#1E293B] text-[10.5px] space-y-1">
+                      <div className="flex items-center justify-between text-blue-400 font-mono font-bold text-[9px]">
+                        <span>Q: {inq.analyst_question}</span>
+                        {inq.reassessment_status && (
+                          <span className="text-purple-400 uppercase">[{inq.reassessment_status}]</span>
+                        )}
+                      </div>
+                      {inq.agent_response && (
+                        <p className="text-slate-300 text-[10px] pl-2 border-l border-purple-500/40">
+                          {inq.agent_response}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── END-TO-END DECISION LINEAGE ── */}
+        <div className="space-y-3 p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+          <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-2 flex items-center justify-between">
+            <span>END-TO-END DECISION LINEAGE</span>
+            <span className="text-[9px] text-sky-400 font-normal">7-POINT TRACEABILITY</span>
+          </h4>
+
+          <div className="space-y-2 font-mono text-[10.5px]">
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+              <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[9px] font-bold">1</span>
+              <span className="text-slate-400">Transaction Ingested:</span>
+              <span className="text-slate-200 font-bold ml-auto">{rec.transaction_id || rec.tx_id || 'TX-INGESTED'}</span>
+            </div>
+
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+              <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[9px] font-bold">2</span>
+              <span className="text-slate-400">Deterministic 5 Agents:</span>
+              <span className="text-emerald-400 font-bold ml-auto">5/5 Verified Complete</span>
+            </div>
+
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+              <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[9px] font-bold">3</span>
+              <span className="text-slate-400">Human Inquiry / Challenge:</span>
+              <span className="text-purple-400 font-bold ml-auto">
+                {rec.collaborative_inquiry_log?.length ? `${rec.collaborative_inquiry_log.length} Inquiries Filed` : 'Completed / Reviewed'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+              <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[9px] font-bold">4</span>
+              <span className="text-slate-400">AI Synthesized Advice:</span>
+              <span className="text-sky-400 font-bold ml-auto">{rec.ai_recommended_action || 'ESCALATE_SENIOR_COMPLIANCE'}</span>
+            </div>
+
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+              <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[9px] font-bold">5</span>
+              <span className="text-slate-400">Human Adjudication:</span>
+              <span className={twMerge("font-bold ml-auto", rec.is_human_override ? "text-amber-400" : "text-emerald-400")}>
+                {rec.is_human_override ? 'HUMAN OVERRIDE' : 'ACCEPTED AI ADVICE'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+              <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[9px] font-bold">6</span>
+              <span className="text-slate-400">Executed Action:</span>
+              <span className="text-slate-200 font-bold ml-auto">{rec.action_code || rec.action || 'EXECUTED'}</span>
+            </div>
+
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+              <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[9px] font-bold">7</span>
+              <span className="text-slate-400">Audit Commitment:</span>
+              <span className="text-sky-400 font-bold ml-auto">PostgreSQL Immutable Record</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

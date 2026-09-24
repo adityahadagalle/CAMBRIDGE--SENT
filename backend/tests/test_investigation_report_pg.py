@@ -42,9 +42,17 @@ class TestPhase8Step4ReportPersistence(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.db_url = os.getenv("DATABASE_URL")
-        if not cls.db_url:
-            cls.db_url = get_database_url(async_driver=True)
-        cls.has_postgres = bool(cls.db_url and cls.db_url.startswith("postgresql"))
+        cls.has_postgres = False
+        if cls.db_url and cls.db_url.startswith("postgresql"):
+            try:
+                engine = get_async_engine(cls.db_url)
+                async def check_conn():
+                    async with engine.connect() as conn:
+                        await conn.execute(text("SELECT 1"))
+                asyncio.run(check_conn())
+                cls.has_postgres = True
+            except Exception:
+                cls.has_postgres = False
 
     def setUp(self):
         if not self.has_postgres:

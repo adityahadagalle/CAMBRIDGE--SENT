@@ -3,24 +3,25 @@
 @tailwind utilities;
 
 :root {
-  --background: 224 47% 4%;       /* #090d16 Deep dark navy */
-  --foreground: 210 40% 98%;      /* #f8fafc Clean primary text */
-  --card: 222 40% 7.5%;           /* #0e1626 Dark navy surface */
+  /* SENTINEL dark SOC palette from friend's exact reference */
+  --background: 222 47% 4%;        /* #080D18 Deep dark navy */
+  --foreground: 210 40% 98%;       /* #F8FAFC Clean primary text */
+  --card: 220 42% 7%;              /* #0C1424 Dark navy surface */
   --card-foreground: 210 40% 98%;
-  --popover: 222 40% 7.5%;
+  --popover: 220 42% 7%;
   --popover-foreground: 210 40% 98%;
-  --primary: 217 91% 60%;         /* #3b82f6 Electric blue accent */
+  --primary: 217 91% 60%;          /* #3B82F6 Electric blue accent */
   --primary-foreground: 0 0% 100%;
-  --secondary: 222 30% 12%;       /* #162032 Slate dark surface */
+  --secondary: 219 38% 11%;        /* #0E1A2C Slate dark surface */
   --secondary-foreground: 210 40% 98%;
-  --muted: 222 30% 12%;
-  --muted-foreground: 215 20% 65%;/* #94a3b8 Slate metadata */
-  --accent: 222 30% 15%;
+  --muted: 219 38% 11%;
+  --muted-foreground: 215 20% 55%; /* #7C8CA0 Slate metadata */
+  --accent: 219 38% 13%;
   --accent-foreground: 210 40% 98%;
-  --destructive: 0 84% 60%;       /* #ef4444 Critical red */
+  --destructive: 0 84% 60%;        /* #EF4444 Critical red */
   --destructive-foreground: 210 40% 98%;
-  --border: 222 30% 15%;          /* #1e293b Subtle border */
-  --input: 222 30% 15%;
+  --border: 218 37% 16%;           /* #1A2640 Subtle border */
+  --input: 218 37% 14%;
   --ring: 217 91% 60%;
 }
 
@@ -64,5 +65,34 @@
 
 .animate-new-row {
   animation: newRowEntry 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Real Risk Score Trend Live Telemetry Pulse */
+@keyframes riskTelemetryPulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.85;
+  }
+  60% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.risk-telemetry-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: riskTelemetryPulse 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .risk-telemetry-pulse {
+    animation: none !important;
+    display: none !important;
+  }
 }
 

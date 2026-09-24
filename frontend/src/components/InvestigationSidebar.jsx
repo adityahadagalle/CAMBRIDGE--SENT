@@ -11,7 +11,10 @@ import GoldenTimer from './GoldenTimer';
 import AnalystEvidenceViewer from './AnalystEvidenceViewer';
 import GraphCanvas from '../modules/GraphModule/GraphCanvas';
 import InvestigationWorkflowGraph from './InvestigationWorkflowGraph';
+import HumanCollaborationWorkspace from './HumanCollaborationWorkspace';
+import AutomationAuditDrawer from './AutomationAuditDrawer';
 import { maskAccount } from '../utils/maskAccount';
+
 
 /**
  * SENTINEL Investigation Workspace
@@ -48,6 +51,9 @@ const InvestigationSidebar = ({
   const [showAiPanel, setShowAiPanel] = useState(false);
 
   // ── Action / Freeze State ────────────────────────────────────────────────
+  const [workspaceViewMode, setWorkspaceViewMode] = useState('collaboration'); // 'collaboration' | 'topology'
+  const [showAuditDrawer, setShowAuditDrawer] = useState(false);
+  const [auditDataForDrawer, setAuditDataForDrawer] = useState(null);
   const [isAccountFrozen, setIsAccountFrozen] = useState(
     selectedCase?.status === 'FROZEN' || selectedTransaction?.status === 'FROZEN'
   );
@@ -446,10 +452,51 @@ const InvestigationSidebar = ({
 
           {/* Header Action Controls */}
           <div className="flex items-center gap-3">
+            {/* View Mode Toggle: Collaboration vs Topology */}
+            <div className="flex items-center p-1 bg-[#060D1A] border border-[#1E293B] rounded-lg font-mono text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={() => setWorkspaceViewMode('collaboration')}
+                className={twMerge(
+                  "px-3 py-1 rounded-md transition-all flex items-center gap-1.5 cursor-pointer",
+                  workspaceViewMode === 'collaboration'
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/30 font-black"
+                    : "text-slate-400 hover:text-slate-200"
+                )}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>COLLABORATION</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setWorkspaceViewMode('topology')}
+                className={twMerge(
+                  "px-3 py-1 rounded-md transition-all flex items-center gap-1.5 cursor-pointer",
+                  workspaceViewMode === 'topology'
+                    ? "bg-slate-700 text-slate-100 font-black"
+                    : "text-slate-400 hover:text-slate-200"
+                )}
+              >
+                <Network className="w-3.5 h-3.5" />
+                <span>TOPOLOGY</span>
+              </button>
+            </div>
+
+            {/* Audit Dossier Quick Access */}
+            <button
+              type="button"
+              onClick={() => setShowAuditDrawer(true)}
+              className="px-2.5 py-1.5 rounded-lg bg-[#060D1A] hover:bg-[#1E293B] text-sky-400 border border-[#1E293B] hover:border-sky-500/40 font-mono text-[10px] font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Inspect Automation & Collaboration Audit Dossier"
+            >
+              <FileText className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden sm:inline">AUDIT DOSSIER</span>
+            </button>
+
             {/* Close Button */}
             <button 
               onClick={onClose} 
-              className="p-1.5 hover:bg-[#1E293B] rounded-lg transition-colors text-slate-400 hover:text-slate-100"
+              className="p-1.5 hover:bg-[#1E293B] rounded-lg transition-colors text-slate-400 hover:text-slate-100 cursor-pointer"
               title="Close Workspace (Esc)"
             >
               <X className="w-5 h-5" />
@@ -459,8 +506,50 @@ const InvestigationSidebar = ({
 
         {/* ── SECTION B & C: PRIMARY SCROLLABLE WORKSPACE ──────────────────── */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          
-          {/* 1. PRIMARY VIEWPORT: 60/40 SPLIT (GRAPH + SUMMARY) */}
+          {workspaceViewMode === 'collaboration' ? (
+            <HumanCollaborationWorkspace
+              caseId={caseId}
+              selectedCase={selectedCase}
+              selectedTransaction={selectedTransaction}
+              investigationReadModel={investigationReadModel}
+              timelineStages={timelineStages}
+              role={role}
+              onClose={onClose}
+              onOpenAuditDossier={(customAuditData) => {
+                if (customAuditData) {
+                  setAuditDataForDrawer(customAuditData);
+                }
+                setShowAuditDrawer(true);
+              }}
+              onDispositionComplete={(dispData) => {
+                if (dispData?.action_code === 'RECOMMEND_ACCOUNT_FREEZE') {
+                  setIsAccountFrozen(true);
+                }
+                if (dispData) {
+                  setAuditDataForDrawer({
+                    execution_record: {
+                      transaction_id: txId,
+                      tx_id: txId,
+                      case_id: caseId,
+                      action_status: 'EXECUTED',
+                      mode: 'HUMAN_ADJUDICATION',
+                      timestamp: new Date().toISOString(),
+                      action_code: dispData.action_code,
+                      ai_recommended_action: dispData.ai_recommended_action || recommendationText?.split(':')[0]?.trim(),
+                      is_human_override: dispData.is_human_override || false,
+                      override_rationale: dispData.override_rationale || '',
+                      collaborative_inquiry_log: dispData.collaborative_inquiry_log || [],
+                      requires_human_approval: true
+                    }
+                  });
+                }
+                setActionSuccessMsg(`Disposition ${dispData?.action_code || ''} confirmed.`);
+                setTimeout(() => setActionSuccessMsg(null), 4000);
+              }}
+            />
+          ) : (
+            <>
+              {/* 1. PRIMARY VIEWPORT: 60/40 SPLIT (GRAPH + SUMMARY) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-[380px]">
             
             {/* Left Column (60%): Cytoscape Network Graph */}
@@ -576,6 +665,7 @@ const InvestigationSidebar = ({
           <InvestigationWorkflowGraph
             timelineStages={timelineStages}
             graphData={graphData}
+            caseId={caseId}
           />
 
           {/* 3. INDEPENDENT AI ADVISORY CARD (QWEN 3:8B) */}
@@ -731,74 +821,78 @@ const InvestigationSidebar = ({
               )}
             </div>
           )}
+            </>
+          )}
         </div>
 
-        {/* ── SECTION D: STICKY RECOMMENDATION & ACTION BAR ────────────────── */}
-        <footer className="px-6 py-3.5 border-t border-[#1E293B] bg-[#0B132B] shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4">
-          
-          {/* Recommendation Banner */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-4 h-4 text-red-400" />
+        {/* ── SECTION D: STICKY RECOMMENDATION & ACTION BAR (Topology Mode) ─ */}
+        {workspaceViewMode === 'topology' && (
+          <footer className="px-6 py-3.5 border-t border-[#1E293B] bg-[#0B132B] shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4">
+            
+            {/* Recommendation Banner */}
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 text-red-400" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-100">
+                  RECOMMENDATION: {recommendationText}
+                </div>
+                <div className="text-[10px] text-red-400/90 font-mono">
+                  {isAutomationOn ? 'AUTOMATION ACTIVE · Restrictive actions require operator confirmation' : 'MANUAL OPERATOR MODE'}
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-100">
-                RECOMMENDATION: {recommendationText}
-              </div>
-              <div className="text-[10px] text-red-400/90 font-mono">
-                {isAutomationOn ? 'AUTOMATION ACTIVE · Restrictive actions require operator confirmation' : 'MANUAL OPERATOR MODE'}
-              </div>
-            </div>
-          </div>
 
-          {/* Action Button Controls */}
-          <div className="flex items-center gap-3 shrink-0">
-            {actionSuccessMsg && (
-              <span className="text-xs font-mono text-emerald-400 font-bold animate-fadeIn">
-                ✓ {actionSuccessMsg}
-              </span>
-            )}
-            {freezeError && (
-              <span className="text-xs font-mono text-rose-400 font-bold animate-fadeIn">
-                ⚠ {freezeError}
-              </span>
-            )}
-
-            {/* Close / Dismiss */}
-            <button
-              onClick={onClose}
-              className="px-3.5 py-2 rounded-lg text-xs font-mono font-semibold bg-[#1E293B] hover:bg-[#334155] text-slate-300 transition-colors"
-            >
-              DISMISS
-            </button>
-
-            {/* FREEZE ACCOUNT — HUMAN OPERATOR APPROVAL REQUIRED */}
-            {isAccountFrozen ? (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-xs font-mono">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span className="font-bold text-emerald-400">ACCOUNT FROZEN</span>
-                <span className="text-slate-500">·</span>
-                <span className="text-[10px] text-slate-400">Operator Confirmed</span>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowFreezeModal(true)}
-                disabled={isViewer || freezeLoading}
-                className={twMerge(
-                  "px-4 py-2 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all shadow-lg",
-                  "bg-red-600 hover:bg-red-500 text-white border border-red-400 disabled:opacity-40"
-                )}
-                title={isViewer ? "Admin privileges required" : "Freeze beneficiary account"}
-              >
-                <Lock className="w-3.5 h-3.5" />
-                <span>{freezeLoading ? 'PERSISTING...' : 'FREEZE ACCOUNT'}</span>
-                <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-black/40 text-red-200 uppercase tracking-tight">
-                  HUMAN OPERATOR APPROVAL REQUIRED
+            {/* Action Button Controls */}
+            <div className="flex items-center gap-3 shrink-0">
+              {actionSuccessMsg && (
+                <span className="text-xs font-mono text-emerald-400 font-bold animate-fadeIn">
+                  ✓ {actionSuccessMsg}
                 </span>
+              )}
+              {freezeError && (
+                <span className="text-xs font-mono text-rose-400 font-bold animate-fadeIn">
+                  ⚠ {freezeError}
+                </span>
+              )}
+
+              {/* Close / Dismiss */}
+              <button
+                onClick={onClose}
+                className="px-3.5 py-2 rounded-lg text-xs font-mono font-semibold bg-[#1E293B] hover:bg-[#334155] text-slate-300 transition-colors"
+              >
+                DISMISS
               </button>
-            )}
-          </div>
-        </footer>
+
+              {/* FREEZE ACCOUNT — HUMAN OPERATOR APPROVAL REQUIRED */}
+              {isAccountFrozen ? (
+                <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-xs font-mono">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="font-bold text-emerald-400">ACCOUNT FROZEN</span>
+                  <span className="text-slate-500">·</span>
+                  <span className="text-[10px] text-slate-400">Operator Confirmed</span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowFreezeModal(true)}
+                  disabled={isViewer || freezeLoading}
+                  className={twMerge(
+                    "px-4 py-2 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all shadow-lg",
+                    "bg-red-600 hover:bg-red-500 text-white border border-red-400 disabled:opacity-40"
+                  )}
+                  title={isViewer ? "Admin privileges required" : "Freeze beneficiary account"}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>{freezeLoading ? 'PERSISTING...' : 'FREEZE ACCOUNT'}</span>
+                  <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-black/40 text-red-200 uppercase tracking-tight">
+                    HUMAN OPERATOR APPROVAL REQUIRED
+                  </span>
+                </button>
+              )}
+            </div>
+          </footer>
+        )}
 
         {/* ── FREEZE CONFIRMATION MODAL ────────────────────────────────────── */}
         {showFreezeModal && (
@@ -902,6 +996,30 @@ const InvestigationSidebar = ({
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── IMMUTABLE AUTOMATION & COLLABORATION AUDIT DRAWER ─────────────── */}
+        {showAuditDrawer && (
+          <AutomationAuditDrawer
+            auditData={auditDataForDrawer || {
+              execution_record: {
+                transaction_id: txId,
+                tx_id: txId,
+                case_id: caseId,
+                action_status: isAccountFrozen ? 'FROZEN' : (selectedCase?.status || 'PENDING_REVIEW'),
+                mode: isAutomationOn ? 'AUTOMATE_ON' : 'MANUAL_OPERATOR',
+                policy_verdict: 'MANUAL_OVERRIDE_PERMITTED',
+                timestamp: new Date().toISOString(),
+                action_code: isAccountFrozen ? 'RECOMMEND_ACCOUNT_FREEZE' : 'PENDING_DISPOSITION',
+                ai_recommended_action: recommendationText?.split(':')[0]?.trim() || 'ESCALATE_SENIOR_COMPLIANCE',
+                is_human_override: false,
+                override_rationale: '',
+                collaborative_inquiry_log: [],
+                requires_human_approval: true
+              }
+            }}
+            onClose={() => setShowAuditDrawer(false)}
+          />
         )}
       </div>
     </div>

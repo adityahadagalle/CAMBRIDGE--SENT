@@ -39,26 +39,7 @@ from app.services.investigation_orchestrator import investigation_orchestrator
 from fastapi.middleware.cors import CORSMiddleware
 
 
-def get_repository(
-    session: Optional[AsyncSession] = Depends(get_db_session)
-) -> AbstractCaseRepository:
-    """
-    FastAPI Dependency Provider for AbstractCaseRepository (Phase 8 Step 1).
-    - If AsyncSession is active: returns PostgreSQLCaseRepository(session).
-    - If AsyncSession is None and in dev/test mode: returns InMemoryCaseRepository(data_store).
-    - If in production mode or PostgreSQL configured but session is None: FAILS FAST (raises RuntimeError).
-    """
-    sentinel_mode = os.getenv("SENTINEL_MODE", "development").lower()
-    db_url = os.getenv("DATABASE_URL")
-    is_postgres_env = bool(db_url and db_url.startswith("postgresql"))
-
-    if session is not None:
-        return PostgreSQLCaseRepository(session)
-
-    if sentinel_mode == "production" or is_postgres_env:
-        raise RuntimeError("POSTGRESQL PERSISTENCE FAILURE: Database session unavailable in production mode.")
-
-    return InMemoryCaseRepository(data_store)
+from app.repositories.dependencies import get_repository
 
 
 
@@ -116,6 +97,10 @@ app.add_middleware(
 from app.routes.intelligence import router as intelligence_router
 app.include_router(intelligence_router)
 
+# ── BENCHMARK LAB ROUTER ──────────────────────────────────────────────────────
+from app.routes.benchmark import router as benchmark_router
+app.include_router(benchmark_router)
+
 class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: list[WebSocket] = []
@@ -140,6 +125,9 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 investigation_orchestrator.broadcast_manager = manager
+from app.services.benchmark_service import benchmark_service
+benchmark_service.broadcast_manager = manager
+
 
 
 
@@ -250,6 +238,10 @@ def _case_payload(case: dict[str, Any]) -> dict[str, Any]:
     tx_ids = case.get("transactions", [])
     tx_store = data_store.get("transactions", {})
     transactions = [tx_store[tid] for tid in tx_ids if tid in tx_store]
+    if not transactions and case.get("primary_tx_id") and case.get("primary_tx_id") in tx_store:
+        transactions = [tx_store[case.get("primary_tx_id")]]
+    if not transactions:
+        transactions = [t for t in tx_store.values() if t.get("case_id") == case_id]
     evidence_package = collect_evidence_for_case(case_id, data_store)
     contextual_investigation = investigate_context(evidence_package)
     regulatory_assessment = assess_regulatory_risk(evidence_package, contextual_investigation)
@@ -308,6 +300,10 @@ class DispositionRequest(BaseModel):
     analyst_role: str | None = "COMPLIANCE_ANALYST"
     risk_acknowledged: bool = False
     idempotency_key: str | None = None
+    is_human_override: bool | None = False
+    ai_recommended_action: str | None = None
+    override_rationale: str | None = None
+    collaborative_inquiry_log: list[dict[str, Any]] | None = None
 
 
 
@@ -396,6 +392,21 @@ async def _process_policy_and_action(transaction: dict[str, Any], case: dict[str
     return policy_decision, execution_record
 
 
+def _get_account_kyc_status(acc_id: str, acc_record: Optional[dict] = None) -> str:
+    if acc_record and acc_record.get("kyc_status"):
+        return str(acc_record["kyc_status"]).upper()
+    if not acc_id:
+        return "PENDING"
+    upper = acc_id.upper()
+    if upper.startswith("ACC-USR") or upper.startswith("ACC-MERCH") or upper.startswith("ACC-REGULAR"):
+        return "VERIFIED"
+    elif upper.startswith("ACC-EXIT"):
+        return "UNVERIFIED"
+    elif upper.startswith("ACC-MULE") or upper.startswith("ACC-HUB") or upper.startswith("ACC-LAYER"):
+        return "PENDING"
+    return "PENDING"
+
+
 @app.post("/transaction")
 async def process_tx(
     request: Request,
@@ -419,10 +430,16 @@ async def process_tx(
     accounts_to_save = []
 
     if sender_id:
-        acc_s = data_store.get("accounts", {}).get(sender_id) or {"account_id": sender_id}
+        acc_s = data_store.get("accounts", {}).get(sender_id) or {
+            "account_id": sender_id,
+            "kyc_status": _get_account_kyc_status(sender_id)
+        }
         accounts_to_save.append(acc_s)
     if receiver_id and receiver_id != sender_id:
-        acc_r = data_store.get("accounts", {}).get(receiver_id) or {"account_id": receiver_id}
+        acc_r = data_store.get("accounts", {}).get(receiver_id) or {
+            "account_id": receiver_id,
+            "kyc_status": _get_account_kyc_status(receiver_id)
+        }
         accounts_to_save.append(acc_r)
 
     await repo.save_transaction_and_case(accounts_to_save, transaction, case)
@@ -683,7 +700,7 @@ async def _build_investigation_read_model(case_id: str, repo: AbstractCaseReposi
                 rpt = rpt_obj.get("report_data")
 
         # Deterministic fallback for EVIDENCE collection stage if report is missing
-        if stg == "EVIDENCE" and (not rpt or stg_status != "COMPLETED"):
+        if run and stg == "EVIDENCE" and (not rpt or stg_status != "COMPLETED"):
             try:
                 ev_fallback = collect_evidence_for_case(case_id, data_store)
                 if ev_fallback and ev_fallback.get("evidence"):
@@ -1067,7 +1084,11 @@ async def submit_case_disposition(
         analyst_id=payload.analyst_id or "ANALYST-001",
         analyst_role=payload.analyst_role or "COMPLIANCE_ANALYST",
         risk_acknowledged=payload.risk_acknowledged,
-        idempotency_key=payload.idempotency_key
+        idempotency_key=payload.idempotency_key,
+        is_human_override=payload.is_human_override,
+        ai_recommended_action=payload.ai_recommended_action,
+        override_rationale=payload.override_rationale,
+        collaborative_inquiry_log=payload.collaborative_inquiry_log,
     )
 
 
@@ -1471,6 +1492,23 @@ async def _handle_action(action_name: str, payload: ActionRequest, repo=None) ->
         "policy_decision": pol
     })
 
+    if case_obj and exec_rec.get("execution_status") == "SUCCESS":
+        act_entry = {
+            "action_id": f"ACT-{uuid4().hex[:10].upper()}",
+            "case_id": case_id,
+            "action_type": action_code,
+            "action": action_code,
+            "target_id": payload.account_id or payload.target_id or "GLOBAL",
+            "status": "SUCCESS",
+            "timestamp": exec_rec.get("timestamp") or _now_iso(),
+            "reason": payload.reason or "Operator executed action"
+        }
+        case_obj.setdefault("actions_taken", []).insert(0, act_entry)
+        if action_code in ["CLOSE", "MARK_FALSE_POSITIVE", "CLOSE_ACCOUNT"]:
+            case_obj["status"] = "CLOSED" if action_code != "MARK_FALSE_POSITIVE" else "CLOSED_FP"
+        elif action_code in ["FREEZE", "BLOCK", "FILE_STR", "FLAG", "ALERT", "MONITOR", "ENHANCED_MONITORING"]:
+            case_obj["status"] = "ACTIONED"
+
     if case_obj:
         await manager.broadcast({"event": "case_updated", **_case_payload(case_obj)})
 
@@ -1572,6 +1610,21 @@ async def execute_operator_freeze(
         "execution_record": exec_rec,
         "policy_decision": pol
     })
+
+    if case_obj and exec_rec.get("execution_status") == "SUCCESS":
+        act_entry = {
+            "action_id": f"ACT-{uuid4().hex[:10].upper()}",
+            "case_id": eff_case_id,
+            "action_type": "FREEZE",
+            "action": "FREEZE",
+            "target_id": transaction_id,
+            "status": "SUCCESS",
+            "timestamp": exec_rec.get("timestamp") or _now_iso(),
+            "reason": (payload.reason if payload else None) or "Operator executed account freeze"
+        }
+        case_obj.setdefault("actions_taken", []).insert(0, act_entry)
+        case_obj["status"] = "ACTIONED"
+        await manager.broadcast({"event": "case_updated", **_case_payload(case_obj)})
 
     return exec_rec
 
@@ -1682,6 +1735,130 @@ async def get_automation_mode() -> dict[str, Any]:
     }
 
 
+def compute_case_investigation_confidence(
+    evidence_package: Optional[dict] = None,
+    contextual_report: Optional[dict] = None,
+    regulatory_report: Optional[dict] = None,
+    audit_report: Optional[dict] = None,
+    analyst_report: Optional[dict] = None
+) -> dict[str, Any]:
+    """
+    Deterministically computes Investigation Confidence from actual multi-agent
+    investigation outputs in SENTINEL.
+    
+    Formula:
+      Score = clamp(round(0.35 * completeness + 0.40 * agreement + 0.25 * diversity - 1.0 * contradictions, 1), 0.0, 100.0)
+    """
+    # 1. Evidence Completeness (35% Weight)
+    # Evaluates presence across the 5 core empirical evidence dimensions from Phase 1
+    completeness = 0.0
+    ev_list = []
+    if evidence_package and isinstance(evidence_package, dict):
+        ev_list = evidence_package.get("evidence", [])
+        if not isinstance(ev_list, list):
+            ev_list = []
+
+    if ev_list:
+        has_tx = any(e.get("type") == "transaction" for e in ev_list if isinstance(e, dict))
+        has_baseline = any(
+            e.get("type") == "historical_behavior" and "Baseline" in str(e.get("category", ""))
+            for e in ev_list if isinstance(e, dict)
+        )
+        has_flow = any(
+            (e.get("type") in ("historical_behavior", "related_activity"))
+            and any(k in str(e.get("category", "")) for k in ("Counterparty", "Flow", "Chain"))
+            for e in ev_list if isinstance(e, dict)
+        )
+        has_graph = any(
+            e.get("type") == "graph_network" or "Graph" in str(e.get("category", ""))
+            for e in ev_list if isinstance(e, dict)
+        )
+        has_fin = any(
+            e.get("type") == "financial" or any(k in str(e.get("category", "")) for k in ("Financial", "Recovery"))
+            for e in ev_list if isinstance(e, dict)
+        )
+        present_dims = sum([1 if x else 0 for x in (has_tx, has_baseline, has_flow, has_graph, has_fin)])
+        completeness = round((present_dims / 5.0) * 100.0, 1)
+
+    # 2. Agent Agreement (40% Weight)
+    # Evaluates severity consensus across the evaluating agents (Contextual, Regulatory, Decision Support)
+    sev_map = {"CRITICAL": 100, "HIGH": 75, "MEDIUM": 50, "LOW": 25}
+    active_sevs = []
+
+    if contextual_report and isinstance(contextual_report, dict):
+        ctx_s = contextual_report.get("summary", {}).get("contextual_severity")
+        if ctx_s in sev_map:
+            active_sevs.append(("contextual", sev_map[ctx_s]))
+
+    if regulatory_report and isinstance(regulatory_report, dict):
+        reg_s = regulatory_report.get("summary", {}).get("regulatory_severity")
+        if reg_s in sev_map:
+            active_sevs.append(("regulatory", sev_map[reg_s]))
+
+    if analyst_report and isinstance(analyst_report, dict):
+        dec_s = analyst_report.get("summary", {}).get("regulatory_severity")
+        if dec_s in sev_map:
+            active_sevs.append(("decision_support", sev_map[dec_s]))
+
+    if len(active_sevs) >= 2:
+        pair_diffs = []
+        for i in range(len(active_sevs)):
+            for j in range(i + 1, len(active_sevs)):
+                diff = abs(active_sevs[i][1] - active_sevs[j][1])
+                pair_diffs.append(max(0.0, 100.0 - diff))
+        agreement = round(sum(pair_diffs) / len(pair_diffs), 1)
+    elif len(active_sevs) == 1:
+        agreement = 75.0  # Single evaluated agent baseline
+    else:
+        agreement = 0.0
+
+    # 3. Source Diversity (25% Weight)
+    # Evaluates number of independent evidence sources supporting the investigation
+    sources = set()
+    if ev_list:
+        for e in ev_list:
+            if isinstance(e, dict) and e.get("source"):
+                sources.add(str(e.get("source")).strip())
+
+    if sources:
+        diversity = round(min(100.0, (len(sources) / 5.0) * 100.0), 1)
+    else:
+        diversity = 0.0
+
+    # 4. Contradictions (-1.0% penalty per contradiction)
+    # Detects polar conflicts (e.g. CRITICAL/HIGH vs LOW)
+    contradictions = 0
+    if len(active_sevs) >= 2:
+        for i in range(len(active_sevs)):
+            for j in range(i + 1, len(active_sevs)):
+                val_i = active_sevs[i][1]
+                val_j = active_sevs[j][1]
+                if (val_i >= 75 and val_j <= 25) or (val_j >= 75 and val_i <= 25):
+                    contradictions += 1
+
+    # Final Confidence Score & Label
+    raw_score = (0.35 * completeness) + (0.40 * agreement) + (0.25 * diversity) - (1.0 * contradictions)
+    score = round(min(100.0, max(0.0, raw_score)), 1)
+
+    if score >= 85.0:
+        label = "HIGH CONFIDENCE"
+    elif score >= 60.0:
+        label = "MEDIUM CONFIDENCE"
+    elif score > 0.0:
+        label = "LOW CONFIDENCE"
+    else:
+        label = "LOW CONFIDENCE"
+
+    return {
+        "evidence_completeness": completeness,
+        "agent_agreement": agreement,
+        "source_diversity": diversity,
+        "contradiction_count": contradictions,
+        "score": score,
+        "label": label
+    }
+
+
 @app.get("/analytics/overview")
 async def get_analytics_overview(
     timeframe: str = Query(default="30d", pattern="^(24h|7d|30d|12m)$"),
@@ -1705,6 +1882,34 @@ async def get_analytics_overview(
             cases_list = await repo.get_cases()
         except Exception:
             cases_list = []
+
+    # Apply timeframe filter if transactions have timestamps
+    if tx_list and timeframe:
+        from datetime import timedelta
+        now_utc = datetime.now(timezone.utc)
+        tf_delta = {
+            "24h": timedelta(hours=24),
+            "7d": timedelta(days=7),
+            "30d": timedelta(days=30),
+            "12m": timedelta(days=365)
+        }.get(timeframe)
+
+        if tf_delta:
+            cutoff = now_utc - tf_delta
+            def parse_tx_time(tx):
+                raw = tx.get("timestamp")
+                if not raw:
+                    return None
+                try:
+                    return datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                except Exception:
+                    return None
+
+            timed_txs = [t for t in tx_list if parse_tx_time(t) is not None]
+            if timed_txs:
+                in_range = [t for t in timed_txs if parse_tx_time(t) >= cutoff]
+                if in_range:
+                    tx_list = in_range
 
     total_tx = len(tx_list)
     risk_alerts = [t for t in tx_list if float(t.get("risk_score", 0)) >= 40]
@@ -1736,26 +1941,36 @@ async def get_analytics_overview(
         })
 
     if not risk_trend:
-        risk_trend = [
-            {"timestamp": "00:00", "avg_score": 32, "high_risk": 2, "critical_risk": 0},
-            {"timestamp": "04:00", "avg_score": 45, "high_risk": 5, "critical_risk": 1},
-            {"timestamp": "08:00", "avg_score": 68, "high_risk": 12, "critical_risk": 3},
-            {"timestamp": "12:00", "avg_score": 74, "high_risk": 18, "critical_risk": 5},
-            {"timestamp": "16:00", "avg_score": 58, "high_risk": 9, "critical_risk": 2},
-            {"timestamp": "20:00", "avg_score": 62, "high_risk": 11, "critical_risk": 4}
-        ]
+        risk_trend = []
 
-    # 2. Alerts by Risk Level
-    crit_count = sum(1 for t in tx_list if float(t.get("risk_score", 0)) >= 85)
-    high_count = sum(1 for t in tx_list if 70 <= float(t.get("risk_score", 0)) < 85)
-    med_count = sum(1 for t in tx_list if 40 <= float(t.get("risk_score", 0)) < 70)
-    low_count = sum(1 for t in tx_list if float(t.get("risk_score", 0)) < 40)
+    # 2. Alerts by Risk Level (Authenticated Forensic Grouping)
+    crit_txs = [t for t in tx_list if float(t.get("risk_score", 0)) >= 85]
+    high_txs = [t for t in tx_list if 70 <= float(t.get("risk_score", 0)) < 85]
+    med_txs = [t for t in tx_list if 40 <= float(t.get("risk_score", 0)) < 70]
+    low_txs = [t for t in tx_list if float(t.get("risk_score", 0)) < 40]
+
+    def _build_tier_summary(txs, name, color, threshold_desc, guidance):
+        cnt = len(txs)
+        pct = round((cnt / max(total_tx, 1)) * 100, 1)
+        vol = round(sum(float(t.get("amount", 0)) for t in txs), 2)
+        scores = [float(t.get("risk_score", 0)) for t in txs]
+        avg_s = round(sum(scores) / len(scores), 1) if scores else 0.0
+        return {
+            "name": name,
+            "value": cnt,
+            "color": color,
+            "percentage": pct,
+            "volume": vol,
+            "avg_score": avg_s,
+            "threshold": threshold_desc,
+            "guidance": guidance
+        }
 
     alerts_by_risk_level = [
-        {"name": "CRITICAL", "value": crit_count, "color": "#ef4444", "percentage": round((crit_count/max(total_tx, 1))*100, 1)},
-        {"name": "HIGH", "value": high_count, "color": "#f59e0b", "percentage": round((high_count/max(total_tx, 1))*100, 1)},
-        {"name": "MEDIUM", "value": med_count, "color": "#38bdf8", "percentage": round((med_count/max(total_tx, 1))*100, 1)},
-        {"name": "LOW", "value": low_count, "color": "#10b981", "percentage": round((low_count/max(total_tx, 1))*100, 1)}
+        _build_tier_summary(crit_txs, "CRITICAL", "#ef4444", "Score ≥ 85", "Immediate automated block or hard freeze"),
+        _build_tier_summary(high_txs, "HIGH", "#f59e0b", "Score 70–84", "Enhanced monitoring and analyst escalation"),
+        _build_tier_summary(med_txs, "MEDIUM", "#38bdf8", "Score 40–69", "Automated telemetry and rule screening"),
+        _build_tier_summary(low_txs, "LOW", "#10b981", "Score < 40", "Normal baseline transaction routing")
     ]
 
     # 3. Investigation Performance
@@ -1768,39 +1983,200 @@ async def get_analytics_overview(
         "cases_investigated": cases_opened,
         "cases_resolved": total_resolved,
         "cases_escalated": cases_escalated,
-        "resolution_rate": resolution_rate,
-        "avg_investigation_time": "1h 42m"
+        "resolution_rate": resolution_rate
     }
 
-    # 4. Action Outcomes
+    # 3b. Investigation Confidence Telemetry (Tier 04 Investigation Performance)
+    tf_tx_ids = {t.get("tx_id") for t in tx_list if isinstance(t, dict)}
+    active_cases = [
+        c for c in cases_list
+        if c.get("primary_tx_id") in tf_tx_ids or any(
+            (tx.get("tx_id") if isinstance(tx, dict) else tx) in tf_tx_ids
+            for tx in c.get("transactions", [])
+        )
+    ] if tx_list else cases_list
+    if not active_cases and cases_list:
+        active_cases = cases_list
+
+    inv_runs_store = data_store.get("investigation_runs", {})
+    reports_store = data_store.get("investigation_reports", {})
+
+    cases_evaluated = 0
+    total_ev_comp = 0.0
+    total_agent_agree = 0.0
+    total_source_div = 0.0
+    total_contradictions = 0
+
+    for case in active_cases:
+        cid = case.get("case_id")
+        if not cid:
+            continue
+
+        run = next((r for r in inv_runs_store.values() if r.get("case_id") == cid), None)
+        stages = run.get("stages", {}) if run else {}
+
+        ev_pkg = case.get("evidence_package") or stages.get("EVIDENCE", {}).get("output") or reports_store.get(f"{cid}::EVIDENCE", {}).get("report_data")
+        ctx_rpt = case.get("contextual_investigation") or case.get("contextual_report") or stages.get("CONTEXTUAL", {}).get("output") or reports_store.get(f"{cid}::CONTEXTUAL", {}).get("report_data")
+        reg_rpt = case.get("regulatory_assessment") or case.get("regulatory_report") or stages.get("REGULATORY", {}).get("output") or reports_store.get(f"{cid}::REGULATORY", {}).get("report_data")
+        aud_rpt = case.get("audit_explanation") or case.get("audit_report") or stages.get("AUDIT", {}).get("output") or stages.get("AUDIT_EXPLANATION", {}).get("output") or reports_store.get(f"{cid}::AUDIT", {}).get("report_data")
+        dec_rpt = case.get("analyst_report") or case.get("decision_support") or stages.get("DECISION", {}).get("output") or stages.get("DECISION_SUPPORT", {}).get("output") or reports_store.get(f"{cid}::DECISION", {}).get("report_data")
+
+        # Only evaluate cases that have actual investigation run/stage data
+        has_any_output = any(x is not None for x in (ev_pkg, ctx_rpt, reg_rpt, aud_rpt, dec_rpt))
+        if not has_any_output and not run:
+            continue
+
+        case_conf = compute_case_investigation_confidence(
+            evidence_package=ev_pkg,
+            contextual_report=ctx_rpt,
+            regulatory_report=reg_rpt,
+            audit_report=aud_rpt,
+            analyst_report=dec_rpt
+        )
+
+        cases_evaluated += 1
+        total_ev_comp += case_conf["evidence_completeness"]
+        total_agent_agree += case_conf["agent_agreement"]
+        total_source_div += case_conf["source_diversity"]
+        total_contradictions += case_conf["contradiction_count"]
+
+    if cases_evaluated > 0:
+        avg_ev_comp = round(total_ev_comp / cases_evaluated, 1)
+        avg_agree = round(total_agent_agree / cases_evaluated, 1)
+        avg_div = round(total_source_div / cases_evaluated, 1)
+        avg_contra = int(round(total_contradictions / cases_evaluated))
+
+        raw_score = (0.35 * avg_ev_comp) + (0.40 * avg_agree) + (0.25 * avg_div) - (1.0 * avg_contra)
+        composite_score = round(min(100.0, max(0.0, raw_score)), 1)
+        conf_level = "HIGH CONFIDENCE" if composite_score >= 85.0 else ("MEDIUM CONFIDENCE" if composite_score >= 60.0 else "LOW CONFIDENCE")
+        status_val = "AVAILABLE"
+    else:
+        avg_ev_comp = 0.0
+        avg_agree = 0.0
+        avg_div = 0.0
+        avg_contra = 0
+        composite_score = 0.0
+        conf_level = "INSUFFICIENT DATA"
+        status_val = "INSUFFICIENT_DATA"
+
+    investigation_confidence = {
+        "status": status_val,
+        "score": composite_score,
+        "confidence_score": composite_score,
+        "label": conf_level,
+        "confidence_level": conf_level,
+        "evidence_completeness": avg_ev_comp,
+        "agent_agreement": avg_agree,
+        "source_diversity": avg_div,
+        "contradiction_count": avg_contra,
+        "cases_evaluated": cases_evaluated,
+        "timeframe": timeframe,
+        "weights": {
+            "evidence_completeness": 0.35,
+            "agent_agreement": 0.40,
+            "source_diversity": 0.25,
+            "contradiction_penalty": 1.0
+        },
+        "distinction": "Evidence Support Index • Not Fraud Probability",
+        "explanation": "Measures how strongly the investigation conclusion is supported by empirical evidence completeness, agent agreement, source diversity, and identified contradictions."
+    }
+
+    # 4. Action Outcomes (Deterministic policy enforcement records filtered by selected timeframe)
     executed_map = data_store.get("executed_actions", {})
     action_counts = {}
+    status_breakdown = {}
     auto_count = 0
     human_count = 0
 
+    from datetime import timedelta
+    def parse_action_time(rec):
+        raw = rec.get("timestamp")
+        if not raw:
+            return None
+        try:
+            return datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        except Exception:
+            return None
+
+    cutoff_action = None
+    if timeframe:
+        tf_delta_map = {
+            "24h": timedelta(hours=24),
+            "7d": timedelta(days=7),
+            "30d": timedelta(days=30),
+            "12m": timedelta(days=365)
+        }
+        delta = tf_delta_map.get(timeframe)
+        if delta:
+            cutoff_action = datetime.now(timezone.utc) - delta
+
+    filtered_action_records = []
     for rec in executed_map.values():
+        rec_time = parse_action_time(rec)
+        if cutoff_action is not None and rec_time is not None:
+            if rec_time < cutoff_action:
+                continue
+        filtered_action_records.append(rec)
+
+    is_auto = bool(data_store.get("automation_mode", False))
+
+    for rec in filtered_action_records:
         ac = rec.get("action_code") or rec.get("action", "MONITOR")
         action_counts[ac] = action_counts.get(ac, 0) + 1
+        st = rec.get("execution_status", "UNKNOWN")
+        if ac not in status_breakdown:
+            status_breakdown[ac] = {}
+        status_breakdown[ac][st] = status_breakdown[ac].get(st, 0) + 1
+
         if rec.get("actor_type") == "AUTOMATION_ENGINE":
             auto_count += 1
         elif rec.get("actor_type") == "HUMAN_OPERATOR":
             human_count += 1
 
-    action_outcomes = [
-        {"action": "MONITOR", "count": action_counts.get("MONITOR", 0)},
-        {"action": "ENHANCED MONITORING", "count": action_counts.get("ENHANCED_MONITORING", 0)},
-        {"action": "ESCALATE", "count": action_counts.get("ESCALATE_ANALYST_REVIEW", 0)},
-        {"action": "BLOCK", "count": action_counts.get("BLOCK", 0)},
-        {"action": "REJECT", "count": action_counts.get("REJECT_TRANSACTION", 0)},
-        {"action": "FREEZE", "count": action_counts.get("FREEZE", 0)},
-        {"action": "FILE STR", "count": action_counts.get("FILE_STR", 0)},
-        {"action": "CLOSE ACCOUNT", "count": action_counts.get("CLOSE_ACCOUNT", 0)},
+    total_actions_timeframe = len(filtered_action_records)
+
+    SUPPORTED_ACTION_CONFIG = [
+        {"code": "ESCALATE_ANALYST_REVIEW", "action": "ESCALATE", "severity": "HIGH", "default_status": "Escalated to Queue"},
+        {"code": "FREEZE", "action": "FREEZE", "severity": "CRITICAL", "default_status": "Requires Operator Action"},
+        {"code": "ENHANCED_MONITORING", "action": "ENHANCED MONITORING", "severity": "MEDIUM", "default_status": "High Risk Watch"},
+        {"code": "MONITOR", "action": "MONITOR", "severity": "LOW", "default_status": "Standard Baseline"},
+        {"code": "BLOCK", "action": "BLOCK", "severity": "CRITICAL", "default_status": "Simulated Block"},
+        {"code": "REJECT_TRANSACTION", "action": "REJECT", "severity": "CRITICAL", "default_status": "Transaction Rejection"},
+        {"code": "FILE_STR", "action": "FILE STR", "severity": "HIGH", "default_status": "Regulatory Filing"},
+        {"code": "CLOSE_ACCOUNT", "action": "CLOSE ACCOUNT", "severity": "CRITICAL", "default_status": "Account Closure"}
     ]
 
+    action_outcomes = []
+    for cfg in SUPPORTED_ACTION_CONFIG:
+        cnt = action_counts.get(cfg["code"], 0)
+        pct = round((cnt / max(total_actions_timeframe, 1)) * 100, 1) if total_actions_timeframe > 0 else 0.0
+        st_dict = status_breakdown.get(cfg["code"], {})
+
+        if cfg["code"] == "FREEZE":
+            status_desc = f"Requires Operator Action ({cnt} pending)" if cnt > 0 else "Supported • 0 recorded in timeframe"
+        elif cnt > 0:
+            if not is_auto:
+                status_desc = f"Policy Evaluated • Held ({cnt} records)"
+            else:
+                status_desc = f"Autonomous Execution ({cnt} executed)"
+        else:
+            status_desc = "Supported • 0 recorded in timeframe"
+
+        action_outcomes.append({
+            "action": cfg["action"],
+            "code": cfg["code"],
+            "count": cnt,
+            "percentage": pct,
+            "severity": cfg["severity"],
+            "status": status_desc,
+            "status_breakdown": st_dict,
+            "supported": True,
+            "is_tracked": True
+        })
+
     # 5. Automation Intelligence
-    is_auto = bool(data_store.get("automation_mode", False))
     total_actions = auto_count + human_count
-    automation_rate = round((auto_count / max(total_actions, 1)) * 100, 1)
+    automation_rate = round((auto_count / max(total_actions, 1)) * 100, 1) if total_actions > 0 else 0.0
 
     automation_intelligence = {
         "automation_mode": is_auto,
@@ -1808,7 +2184,8 @@ async def get_analytics_overview(
         "human_actions_count": human_count,
         "automation_rate": automation_rate,
         "operator_interventions_count": human_count,
-        "freeze_interventions_count": action_counts.get("FREEZE", 0)
+        "freeze_interventions_count": action_counts.get("FREEZE", 0),
+        "total_actions_recorded": total_actions_timeframe
     }
 
     # 6. Channel Performance
@@ -1861,7 +2238,6 @@ async def get_analytics_overview(
     financial_impact = {
         "total_exposure": total_exposure,
         "recovered_assets": recovered_assets,
-        "in_flight": total_exposure * 0.2,
         "estimated_loss": estimated_loss,
         "recovery_rate": recovery_rate
     }
@@ -1880,17 +2256,14 @@ async def get_analytics_overview(
         "timeframe": timeframe,
         "kpis": {
             "total_transactions": total_tx,
-            "total_transactions_trend": "+12.4%",
             "risk_alerts": total_alerts,
-            "risk_alerts_trend": "+24.0%",
             "avg_risk_score": avg_score,
-            "avg_risk_score_trend": "-2.1%",
-            "cases_resolved": total_resolved,
-            "cases_resolved_trend": "+16.0%"
+            "cases_resolved": total_resolved
         },
         "risk_trend": risk_trend,
         "alerts_by_risk_level": alerts_by_risk_level,
         "investigation_performance": investigation_performance,
+        "investigation_confidence": investigation_confidence,
         "action_outcomes": action_outcomes,
         "automation_intelligence": automation_intelligence,
         "risk_distribution": alerts_by_risk_level,
@@ -2041,16 +2414,23 @@ async def trigger_attack_mode() -> dict[str, Any]:
 
     chain_id = f"CHAIN-ATTACK-{_uuid.uuid4().hex[:8].upper()}"
     case_id = f"CASE-{chain_id[6:]}"
-    root_tx_id = f"TX-ATTACK-001"
+    root_tx_id = f"TX-{_uuid.uuid4().hex[:8].upper()}"
+    seed = random.randint(1000, 9999)
 
     attack_nodes = [
-        ("ACC-ATTACK-SOURCE", "SOURCE"),
-        ("ACC-MULE-01", "MULE"),
-        ("ACC-INTERMEDIARY-01", "INTERMEDIARY"),
-        ("ACC-MULE-02", "MULE"),
-        ("ACC-INTERMEDIARY-02", "INTERMEDIARY"),
-        ("ACC-DRAIN-DESTINATION", "DESTINATION")
+        (f"ACC-USR-{seed}", "SOURCE"),
+        (f"ACC-MULE-{random.randint(1000, 9999)}", "MULE"),
+        (f"ACC-HUB-{random.randint(1000, 9999)}", "INTERMEDIARY"),
+        (f"ACC-MULE-{random.randint(1000, 9999)}", "MULE"),
+        (f"ACC-HUB-{random.randint(1000, 9999)}", "INTERMEDIARY"),
+        (f"ACC-MERCH-{random.randint(1000, 9999)}", "DESTINATION")
     ]
+    for acc_id, acc_type in attack_nodes:
+        data_store.setdefault("accounts", {})[acc_id] = {
+            "account_id": acc_id,
+            "account_type": acc_type,
+            "status": "active"
+        }
 
     ATTACK_HOPS = [
         {"is_cross_border": True, "channel": "NEFT", "amount": 480000.0, "risk_score": 75},
@@ -2061,8 +2441,9 @@ async def trigger_attack_mode() -> dict[str, Any]:
     ]
 
     async def _fire_burst():
+        prev_tx_id = None
         for i, hspec in enumerate(ATTACK_HOPS):
-            tx_id = f"TX-ATTACK-00{i+1}"
+            tx_id = root_tx_id if i == 0 else f"TX-{_uuid.uuid4().hex[:8].upper()}"
             sender_acc = attack_nodes[i][0]
             receiver_acc = attack_nodes[i+1][0]
             tx = {
@@ -2078,10 +2459,11 @@ async def trigger_attack_mode() -> dict[str, Any]:
                 "hop_number": i + 1,
                 "total_hops": 5,
                 "pattern_type": "MULE_CHAIN",
-                "parent_transaction_id": f"TX-ATTACK-00{i}" if i > 0 else None,
+                "parent_transaction_id": prev_tx_id,
                 "root_transaction_id": root_tx_id,
                 "risk_score": hspec["risk_score"]
             }
+            prev_tx_id = tx_id
             for k, v in hspec.items():
                 if k not in ("channel", "amount"):
                     tx[k] = v
@@ -2182,13 +2564,15 @@ async def trigger_multi_hop_scenario(
             generated_txs.append(tx)
 
     elif s_key in ("scenario-3", "5-hop", "mule-chain"):
-        # Pattern B: 5-Hop Mule Chain / Layering (Critical FREEZE)
+        # Pattern B: 6-Hop Mule Chain / Layering (7 Nodes) (Critical FREEZE)
         nodes = [
             ("ACC-USR-1023", "SOURCE"),
             ("ACC-MULE-4821", "MULE"),
             ("ACC-INT-7732", "INTERMEDIARY"),
             ("ACC-MULE-9182", "MULE"),
-            ("ACC-MERCH-4412", "DESTINATION")
+            ("ACC-UPI-6003", "INTERMEDIARY"),
+            ("ACC-MERCH-4412", "DESTINATION"),
+            ("ACC-CRYPTO-6006", "DESTINATION")
         ]
         root_tx_id = f"TX-M5-001"
         for i in range(len(nodes) - 1):
@@ -2202,13 +2586,13 @@ async def trigger_multi_hop_scenario(
                 "sender_account": s_acc,
                 "receiver_account": r_acc,
                 "amount": round(98000.0 * (0.97 ** i), 2),
-                "risk_score": min(95, 75 + (i * 5)),
+                "risk_score": min(95, 75 + (i * 4)),
                 "requested_action": "FREEZE" if i == len(nodes) - 2 else "ENHANCED_MONITORING",
-                "reason": f"Multi-hop mule chain layering (Hop {i+1}/4) across rapid velocity accounts.",
+                "reason": f"Multi-hop mule chain layering (Hop {i+1}/6) across rapid velocity accounts.",
                 "channel": "SWIFT" if i >= 2 else "NEFT",
                 "chain_id": chain_id,
                 "hop_number": i + 1,
-                "total_hops": 4,
+                "total_hops": 6,
                 "pattern_type": "MULE_CHAIN",
                 "parent_transaction_id": f"TX-M5-00{i}" if i > 0 else None,
                 "root_transaction_id": root_tx_id
@@ -2320,9 +2704,15 @@ async def trigger_multi_hop_scenario(
         receiver_id = transaction.get("receiver_account")
         accounts_to_save = []
         if sender_id:
-            accounts_to_save.append(data_store.get("accounts", {}).get(sender_id) or {"account_id": sender_id})
+            accounts_to_save.append(data_store.get("accounts", {}).get(sender_id) or {
+                "account_id": sender_id,
+                "kyc_status": _get_account_kyc_status(sender_id)
+            })
         if receiver_id and receiver_id != sender_id:
-            accounts_to_save.append(data_store.get("accounts", {}).get(receiver_id) or {"account_id": receiver_id})
+            accounts_to_save.append(data_store.get("accounts", {}).get(receiver_id) or {
+                "account_id": receiver_id,
+                "kyc_status": _get_account_kyc_status(receiver_id)
+            })
 
         await repo.save_transaction_and_case(accounts_to_save, transaction, case)
 
@@ -2381,115 +2771,327 @@ async def trigger_multi_hop_scenario(
 
 
 
+async def _process_and_broadcast_tx(tx: dict):
+    result = run_pipeline(tx, data_store)
+    transaction = result.get("transaction") or {}
+    case = result.get("case")
+
+    policy_decision, execution_record = await _process_policy_and_action(transaction, case, repo=None)
+
+    if "transactions" not in data_store:
+        data_store["transactions"] = {}
+    data_store["transactions"][transaction.get("tx_id")] = transaction
+
+    tx_event = {
+        "event": "tx_scored",
+        "tx_id": transaction.get("tx_id", ""),
+        "timestamp": transaction.get("timestamp") or _now_iso(),
+        "case_id": transaction.get("case_id", ""),
+        "risk_score": float(transaction.get("risk_score", 0.0)),
+        "amount": float(transaction.get("amount", 0.0)),
+        "sender_account": transaction.get("sender_account", "UNKNOWN"),
+        "receiver_account": transaction.get("receiver_account", "UNKNOWN"),
+        "channel": transaction.get("channel", "UPI"),
+        "risk_factors": transaction.get("risk_factors", []),
+        "threshold": transaction.get("threshold", "LOW"),
+        "reason": transaction.get("reason", "Low risk pattern"),
+        "full_reason": transaction.get("full_reason", ""),
+        "confidence": transaction.get("confidence", "LOW"),
+        "ml_score": transaction.get("ml_score", 0),
+        "rule_score": transaction.get("rule_score", 0),
+        "ml_feature_importance": transaction.get("ml_feature_importance", {}),
+        "account_status": execution_record.get("resulting_account_state", "ACTIVE"),
+        "execution_record": execution_record,
+        "policy_decision": policy_decision,
+        "response_decision": policy_decision
+    }
+    await manager.broadcast(tx_event)
+
+    exec_status = execution_record.get("execution_status", "NOT_EXECUTED")
+    is_operator_req = (exec_status == "REQUIRES_OPERATOR_ACTION")
+
+    await manager.broadcast({
+        "event": "transaction.action",
+        "transaction_id": transaction.get("tx_id", ""),
+        "tx_id": transaction.get("tx_id", ""),
+        "risk_score": float(transaction.get("risk_score", 0.0)),
+        "risk_level": policy_decision.get("risk_level", "LOW"),
+        "action": policy_decision.get("action", "MONITOR"),
+        "action_status": exec_status,
+        "reason": policy_decision.get("reason", transaction.get("reason", "")),
+        "automated": bool(execution_record.get("automation_mode") == "AUTOMATE_ON" and not is_operator_req),
+        "mode": execution_record.get("automation_mode", "AUTOMATE_OFF"),
+        "requires_human_approval": bool(exec_status == "REJECTED" or is_operator_req),
+        "financial_action_status": "HUMAN AUTHORIZATION REQUIRED" if (exec_status == "REJECTED" or is_operator_req) else "NOT_APPLICABLE",
+        "case_id": case.get("case_id") if case else transaction.get("case_id", ""),
+        "timestamp": execution_record.get("timestamp") or _now_iso(),
+        "execution_record": execution_record,
+        "policy_decision": policy_decision
+    })
+
+    if case:
+        if execution_record.get("execution_status") == "SUCCESS":
+            act_code = policy_decision.get("action", "MONITOR")
+            case.setdefault("actions_taken", []).insert(0, {
+                "action_id": f"ACT-{uuid4().hex[:10].upper()}",
+                "case_id": case.get("case_id"),
+                "action_type": act_code,
+                "action": act_code,
+                "target_id": transaction.get("sender_account", "ACC-UNKNOWN"),
+                "status": "SUCCESS",
+                "timestamp": execution_record.get("timestamp") or _now_iso(),
+                "reason": policy_decision.get("reason", "Automated policy execution")
+            })
+            if act_code in ["FREEZE", "BLOCK", "FILE_STR", "MONITOR", "ENHANCED_MONITORING"]:
+                case["status"] = "ACTIONED"
+        await manager.broadcast({"event": "case_updated", **_case_payload(case)})
+
+
 async def _baseline_loop():
     """
     Launches a continuous background simulation loop on backend startup.
-    Generates baseline transactions across low/medium/high risk scenarios.
+    Generates genuine, structurally diverse transactions (direct transfers, linear multi-hop chains,
+    fan-in pooling, and fan-out dispersion) so different transactions produce distinct investigation graphs.
     """
     await asyncio.sleep(0.5)
     while True:
         try:
-            tier = random.choices(["LOW", "MEDIUM", "HIGH"], weights=[60, 25, 15])[0]
-            channel = random.choice(["UPI", "IMPS", "NEFT", "CARD"])
-            sender = f"ACC-USR-{random.randint(1000, 9999)}"
-            receiver = f"ACC-MERCH-{random.randint(1000, 9999)}"
-            
-            if tier == "LOW":
-                amount = round(random.uniform(100, 8000), 2)
+            pattern = random.choices(["DIRECT", "LINEAR", "FAN_OUT", "FRAUD_6PLUS"], weights=[30, 25, 25, 20])[0]
+
+            if pattern == "DIRECT":
+                tier = random.choices(["LOW", "MEDIUM", "HIGH"], weights=[65, 25, 10])[0]
+                channel = random.choice(["UPI", "IMPS", "NEFT", "CARD"])
+                s_id = f"ACC-USR-{random.randint(1000, 9999)}"
+                r_id = f"ACC-MERCH-{random.randint(1000, 9999)}"
+                amt = round(random.uniform(500, 15000), 2) if tier == "LOW" else round(random.uniform(25000, 85000), 2)
                 tx = {
                     "tx_id": f"TX-{uuid4().hex[:8].upper()}",
                     "timestamp": _now_iso(),
-                    "sender_account": sender,
-                    "receiver_account": receiver,
-                    "amount": amount,
-                    "currency": "INR",
-                    "channel": channel
-                }
-            elif tier == "MEDIUM":
-                amount = round(random.uniform(25000, 85000), 2)
-                tx = {
-                    "tx_id": f"TX-{uuid4().hex[:8].upper()}",
-                    "timestamp": _now_iso(),
-                    "sender_account": sender,
-                    "receiver_account": receiver,
-                    "amount": amount,
+                    "sender_account": s_id,
+                    "receiver_account": r_id,
+                    "amount": amt,
                     "currency": "INR",
                     "channel": channel,
-                    "on_active_call": random.choice([True, False]),
-                    "is_scripted": True
+                    "risk_score": 15 if tier == "LOW" else 55
                 }
-            else: # HIGH
-                amount = round(random.uniform(150000, 450000), 2)
-                tx = {
+                await _process_and_broadcast_tx(tx)
+
+            elif pattern == "LINEAR":
+                # 3 entities: Victim -> Mule -> Exit
+                chain_id = f"CHAIN-{uuid4().hex[:8].upper()}"
+                case_id = f"CASE-{chain_id[6:]}"
+                root_tx_id = f"TX-{uuid4().hex[:8].upper()}"
+                v_id = f"ACC-USR-{random.randint(1000, 9999)}"
+                m_id = f"ACC-MULE-{random.randint(1000, 9999)}"
+                d_id = f"ACC-MERCH-{random.randint(1000, 9999)}"
+                amt1 = round(random.uniform(120000, 280000), 2)
+                amt2 = round(amt1 * 0.94, 2)
+
+                tx1 = {
+                    "tx_id": root_tx_id,
+                    "timestamp": _now_iso(),
+                    "case_id": case_id,
+                    "chain_id": chain_id,
+                    "sender_account": v_id,
+                    "receiver_account": m_id,
+                    "amount": amt1,
+                    "currency": "INR",
+                    "channel": "IMPS",
+                    "hop_number": 1,
+                    "total_hops": 2,
+                    "root_transaction_id": root_tx_id,
+                    "risk_score": 75
+                }
+                await _process_and_broadcast_tx(tx1)
+                await asyncio.sleep(0.4)
+
+                tx2 = {
                     "tx_id": f"TX-{uuid4().hex[:8].upper()}",
                     "timestamp": _now_iso(),
-                    "sender_account": f"ACC-VICTIM-{random.randint(1000, 9999)}",
-                    "receiver_account": f"ACC-MULE-{random.randint(1000, 9999)}",
-                    "amount": amount,
+                    "case_id": case_id,
+                    "chain_id": chain_id,
+                    "sender_account": m_id,
+                    "receiver_account": d_id,
+                    "amount": amt2,
                     "currency": "INR",
-                    "channel": channel,
-                    "is_cross_border": random.choice([True, False])
+                    "channel": "UPI",
+                    "hop_number": 2,
+                    "total_hops": 2,
+                    "parent_transaction_id": root_tx_id,
+                    "root_transaction_id": root_tx_id,
+                    "risk_score": 85
                 }
+                await _process_and_broadcast_tx(tx2)
 
-            result = run_pipeline(tx, data_store)
-            transaction = result.get("transaction") or {}
-            case = result.get("case")
+            elif pattern == "FAN_IN":
+                # 4 entities: 2 Victims -> 1 Aggregator Collector -> Exit
+                chain_id = f"CHAIN-{uuid4().hex[:8].upper()}"
+                case_id = f"CASE-{chain_id[6:]}"
+                root_tx_id = f"TX-{uuid4().hex[:8].upper()}"
+                v1_id = f"ACC-USR-{random.randint(1000, 9999)}"
+                v2_id = f"ACC-USR-{random.randint(1000, 9999)}"
+                agg_id = f"ACC-HUB-{random.randint(1000, 9999)}"
+                exit_id = f"ACC-MERCH-{random.randint(1000, 9999)}"
+                amt1 = round(random.uniform(70000, 150000), 2)
+                amt2 = round(random.uniform(60000, 140000), 2)
+                amt3 = round((amt1 + amt2) * 0.96, 2)
 
-            policy_decision, execution_record = await _process_policy_and_action(transaction, case, repo=None)
+                tx1 = {
+                    "tx_id": root_tx_id,
+                    "timestamp": _now_iso(),
+                    "case_id": case_id,
+                    "chain_id": chain_id,
+                    "sender_account": v1_id,
+                    "receiver_account": agg_id,
+                    "amount": amt1,
+                    "currency": "INR",
+                    "channel": "UPI",
+                    "hop_number": 1,
+                    "total_hops": 2,
+                    "risk_score": 70
+                }
+                await _process_and_broadcast_tx(tx1)
+                await asyncio.sleep(0.3)
 
-            if "transactions" not in data_store:
-                data_store["transactions"] = {}
-            data_store["transactions"][transaction.get("tx_id")] = transaction
+                tx2 = {
+                    "tx_id": f"TX-{uuid4().hex[:8].upper()}",
+                    "timestamp": _now_iso(),
+                    "case_id": case_id,
+                    "chain_id": chain_id,
+                    "sender_account": v2_id,
+                    "receiver_account": agg_id,
+                    "amount": amt2,
+                    "currency": "INR",
+                    "channel": "IMPS",
+                    "hop_number": 1,
+                    "total_hops": 2,
+                    "risk_score": 72
+                }
+                await _process_and_broadcast_tx(tx2)
+                await asyncio.sleep(0.3)
 
-            tx_event = {
-                "event": "tx_scored",
-                "tx_id": transaction.get("tx_id", ""),
-                "timestamp": transaction.get("timestamp") or _now_iso(),
-                "case_id": transaction.get("case_id", ""),
-                "risk_score": float(transaction.get("risk_score", 0.0)),
-                "amount": float(transaction.get("amount", 0.0)),
-                "sender_account": transaction.get("sender_account", "UNKNOWN"),
-                "receiver_account": transaction.get("receiver_account", "UNKNOWN"),
-                "channel": transaction.get("channel", "UPI"),
-                "risk_factors": transaction.get("risk_factors", []),
-                "threshold": transaction.get("threshold", "LOW"),
-                "reason": transaction.get("reason", "Low risk pattern"),
-                "full_reason": transaction.get("full_reason", ""),
-                "confidence": transaction.get("confidence", "LOW"),
-                "ml_score": transaction.get("ml_score", 0),
-                "rule_score": transaction.get("rule_score", 0),
-                "ml_feature_importance": transaction.get("ml_feature_importance", {}),
-                "account_status": execution_record.get("resulting_account_state", "ACTIVE"),
-                "execution_record": execution_record,
-                "policy_decision": policy_decision,
-                "response_decision": policy_decision
-            }
-            await manager.broadcast(tx_event)
+                tx3 = {
+                    "tx_id": f"TX-{uuid4().hex[:8].upper()}",
+                    "timestamp": _now_iso(),
+                    "case_id": case_id,
+                    "chain_id": chain_id,
+                    "sender_account": agg_id,
+                    "receiver_account": exit_id,
+                    "amount": amt3,
+                    "currency": "INR",
+                    "channel": "NEFT",
+                    "hop_number": 2,
+                    "total_hops": 2,
+                    "risk_score": 92
+                }
+                await _process_and_broadcast_tx(tx3)
 
-            exec_status = execution_record.get("execution_status", "NOT_EXECUTED")
-            is_operator_req = (exec_status == "REQUIRES_OPERATOR_ACTION")
+            elif pattern == "FAN_OUT":
+                # 4 entities: 1 Origin -> 1 Mule Hub -> 2 Endpoints
+                chain_id = f"CHAIN-{uuid4().hex[:8].upper()}"
+                case_id = f"CASE-{chain_id[6:]}"
+                root_tx_id = f"TX-{uuid4().hex[:8].upper()}"
+                v_id = f"ACC-USR-{random.randint(1000, 9999)}"
+                hub_id = f"ACC-MULE-{random.randint(1000, 9999)}"
+                out1_id = f"ACC-MERCH-{random.randint(1000, 9999)}"
+                out2_id = f"ACC-MERCH-{random.randint(1000, 9999)}"
+                total_amt = round(random.uniform(180000, 360000), 2)
+                amt1 = round(total_amt * 0.48, 2)
+                amt2 = round(total_amt * 0.48, 2)
 
-            await manager.broadcast({
-                "event": "transaction.action",
-                "transaction_id": transaction.get("tx_id", ""),
-                "tx_id": transaction.get("tx_id", ""),
-                "risk_score": float(transaction.get("risk_score", 0.0)),
-                "risk_level": policy_decision.get("risk_level", "LOW"),
-                "action": policy_decision.get("action", "MONITOR"),
-                "action_status": exec_status,
-                "reason": policy_decision.get("reason", transaction.get("reason", "")),
-                "automated": bool(execution_record.get("automation_mode") == "AUTOMATE_ON" and not is_operator_req),
-                "mode": execution_record.get("automation_mode", "AUTOMATE_OFF"),
-                "requires_human_approval": bool(exec_status == "REJECTED" or is_operator_req),
-                "financial_action_status": "HUMAN AUTHORIZATION REQUIRED" if (exec_status == "REJECTED" or is_operator_req) else "NOT_APPLICABLE",
-                "case_id": case.get("case_id") if case else transaction.get("case_id", ""),
-                "timestamp": execution_record.get("timestamp") or _now_iso(),
-                "execution_record": execution_record,
-                "policy_decision": policy_decision
-            })
+                tx1 = {
+                    "tx_id": root_tx_id,
+                    "timestamp": _now_iso(),
+                    "case_id": case_id,
+                    "chain_id": chain_id,
+                    "sender_account": v_id,
+                    "receiver_account": hub_id,
+                    "amount": total_amt,
+                    "currency": "INR",
+                    "channel": "NEFT",
+                    "hop_number": 1,
+                    "total_hops": 2,
+                    "risk_score": 80
+                }
+                await _process_and_broadcast_tx(tx1)
+                await asyncio.sleep(0.3)
 
-            if case:
-                await manager.broadcast({"event": "case_updated", **_case_payload(case)})
+                tx2 = {
+                    "tx_id": f"TX-{uuid4().hex[:8].upper()}",
+                    "timestamp": _now_iso(),
+                    "case_id": case_id,
+                    "chain_id": chain_id,
+                    "sender_account": hub_id,
+                    "receiver_account": out1_id,
+                    "amount": amt1,
+                    "currency": "INR",
+                    "channel": "UPI",
+                    "hop_number": 2,
+                    "total_hops": 2,
+                    "risk_score": 88
+                }
+                await _process_and_broadcast_tx(tx2)
+                await asyncio.sleep(0.3)
+
+                tx3 = {
+                    "tx_id": f"TX-{uuid4().hex[:8].upper()}",
+                    "timestamp": _now_iso(),
+                    "case_id": case_id,
+                    "chain_id": chain_id,
+                    "sender_account": hub_id,
+                    "receiver_account": out2_id,
+                    "amount": amt2,
+                    "currency": "INR",
+                    "channel": "IMPS",
+                    "hop_number": 2,
+                    "total_hops": 2,
+                    "risk_score": 88
+                }
+                await _process_and_broadcast_tx(tx3)
+
+            else: # FRAUD_6PLUS
+                # 6 entities across 5 hops: Victim -> Mule 1 -> Mule 2 -> UPI Gateway -> Cashout Terminal -> Settlement Merchant
+                chain_id = f"CHAIN-{uuid4().hex[:8].upper()}"
+                case_id = f"CASE-{chain_id[6:]}"
+                root_tx_id = f"TX-{uuid4().hex[:8].upper()}"
+                v_id = f"ACC-USR-{random.randint(1000, 9999)}"
+                m1_id = f"ACC-MULE-{random.randint(1000, 9999)}"
+                m2_id = f"ACC-MULE-{random.randint(1000, 9999)}"
+                upi_id = f"UPI-HUB-{random.randint(1000, 9999)}"
+                cash_id = f"CASHOUT-ATM-{random.randint(1000, 9999)}"
+                merch_id = f"ACC-MERCH-{random.randint(1000, 9999)}"
+
+                base_amt = round(random.uniform(220000, 450000), 2)
+                f_hops = [
+                    (root_tx_id, None, v_id, m1_id, base_amt, "NEFT", 1, 80),
+                    (f"TX-{uuid4().hex[:8].upper()}", root_tx_id, m1_id, m2_id, round(base_amt * 0.96, 2), "IMPS", 2, 85),
+                    (f"TX-{uuid4().hex[:8].upper()}", None, m2_id, upi_id, round(base_amt * 0.92, 2), "UPI", 3, 90),
+                    (f"TX-{uuid4().hex[:8].upper()}", None, upi_id, cash_id, round(base_amt * 0.88, 2), "CARD", 4, 94),
+                    (f"TX-{uuid4().hex[:8].upper()}", None, cash_id, merch_id, round(base_amt * 0.85, 2), "NEFT", 5, 98),
+                ]
+                prev_id = root_tx_id
+                for idx, (tid, _, snd, rcv, amt, ch, hop, risk) in enumerate(f_hops):
+                    parent_id = root_tx_id if idx == 1 else (prev_id if idx > 1 else None)
+                    tx_item = {
+                        "tx_id": tid,
+                        "timestamp": _now_iso(),
+                        "case_id": case_id,
+                        "chain_id": chain_id,
+                        "root_transaction_id": root_tx_id,
+                        "parent_transaction_id": parent_id,
+                        "sender_account": snd,
+                        "receiver_account": rcv,
+                        "amount": amt,
+                        "currency": "INR",
+                        "channel": ch,
+                        "hop_number": hop,
+                        "total_hops": 5,
+                        "pattern_type": "MULE_CHAIN",
+                        "risk_score": risk
+                    }
+                    prev_id = tid
+                    await _process_and_broadcast_tx(tx_item)
+                    await asyncio.sleep(0.35)
 
 
         except asyncio.CancelledError:

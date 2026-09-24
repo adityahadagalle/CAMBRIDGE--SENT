@@ -1,5 +1,10 @@
+import os
+import sys
 import unittest
 import asyncio
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from app.core.data_store import data_store
 from app.engines.graph_engine import build_investigation_graph
 

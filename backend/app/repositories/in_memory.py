@@ -111,9 +111,9 @@ class InMemoryCaseRepository(AbstractCaseRepository):
         disps = copy.deepcopy(self._dispositions.get(case_id, []))
         audits = [copy.deepcopy(a) for a in self._audit_log if a.get("case_id") == case_id]
 
-        # Chronological sorting
-        disps.sort(key=lambda x: (x.get("disposition_timestamp", ""), x.get("disposition_id", "")))
-        audits.sort(key=lambda x: (x.get("timestamp", ""), x.get("audit_id", "")))
+        # Chronological sorting (stable sort preserves insertion order for identical timestamps)
+        disps.sort(key=lambda x: x.get("disposition_timestamp", ""))
+        audits.sort(key=lambda x: x.get("timestamp", ""))
 
         return {
             "found": True,
@@ -210,6 +210,9 @@ class InMemoryCaseRepository(AbstractCaseRepository):
 
     async def save_investigation_run(self, run_record: Dict[str, Any]) -> bool:
         run_id = run_record["run_id"]
+        if "_seq" not in run_record:
+            self._seq = getattr(self, "_seq", 0) + 1
+            run_record["_seq"] = self._seq
         self._inv_runs[run_id] = copy.deepcopy(run_record)
         return True
 
@@ -227,12 +230,12 @@ class InMemoryCaseRepository(AbstractCaseRepository):
         runs = [copy.deepcopy(r) for r in self._inv_runs.values() if r.get("case_id") == case_id]
         if not runs:
             return None
-        runs.sort(key=lambda x: str(x.get("started_at", "")), reverse=True)
+        runs.sort(key=lambda x: (str(x.get("started_at", "")), x.get("_seq", 0)), reverse=True)
         return runs[0]
 
     async def get_investigation_runs_for_case(self, case_id: str) -> List[Dict[str, Any]]:
         runs = [copy.deepcopy(r) for r in self._inv_runs.values() if r.get("case_id") == case_id]
-        runs.sort(key=lambda x: str(x.get("started_at", "")), reverse=True)
+        runs.sort(key=lambda x: (str(x.get("started_at", "")), x.get("_seq", 0)), reverse=True)
         return runs
 
 

@@ -49,17 +49,18 @@ class TestDatabaseSessionDI(unittest.TestCase):
             self.skipTest("PostgreSQL not active")
 
         async def run_test():
-            gen = get_db_session()
-            session = await gen.__anext__()
-            try:
-                self.assertIsInstance(session, AsyncSession)
-                repo = get_repository(session)
-                self.assertIsInstance(repo, PostgreSQLCaseRepository)
-            finally:
+            with patch.dict(os.environ, {"SENTINEL_MODE": "production"}):
+                gen = get_db_session()
+                session = await gen.__anext__()
                 try:
-                    await gen.__anext__()
-                except StopAsyncIteration:
-                    pass
+                    self.assertIsInstance(session, AsyncSession)
+                    repo = get_repository(session)
+                    self.assertIsInstance(repo, PostgreSQLCaseRepository)
+                finally:
+                    try:
+                        await gen.__anext__()
+                    except StopAsyncIteration:
+                        pass
 
         self.run_async(run_test())
 
@@ -82,14 +83,15 @@ class TestDatabaseSessionDI(unittest.TestCase):
             self.skipTest("PostgreSQL not active")
 
         async def run_test():
-            gen = get_db_session()
-            session = await gen.__anext__()
-            with patch.object(session, "close", wraps=session.close) as mock_close:
-                try:
-                    await gen.__anext__()
-                except StopAsyncIteration:
-                    pass
-                mock_close.assert_called_once()
+            with patch.dict(os.environ, {"SENTINEL_MODE": "production"}):
+                gen = get_db_session()
+                session = await gen.__anext__()
+                with patch.object(session, "close", wraps=session.close) as mock_close:
+                    try:
+                        await gen.__anext__()
+                    except StopAsyncIteration:
+                        pass
+                    mock_close.assert_called_once()
 
         self.run_async(run_test())
 
@@ -100,16 +102,17 @@ class TestDatabaseSessionDI(unittest.TestCase):
             self.skipTest("PostgreSQL not active")
 
         async def run_test():
-            gen = get_db_session()
-            session = await gen.__anext__()
-            
-            with patch.object(session, 'rollback', wraps=session.rollback) as mock_rollback:
-                with self.assertRaises(ValueError):
-                    try:
-                        raise ValueError("Simulated handler failure")
-                    except Exception as e:
-                        await gen.athrow(e)
-                mock_rollback.assert_called_once()
+            with patch.dict(os.environ, {"SENTINEL_MODE": "production"}):
+                gen = get_db_session()
+                session = await gen.__anext__()
+                
+                with patch.object(session, 'rollback', wraps=session.rollback) as mock_rollback:
+                    with self.assertRaises(ValueError):
+                        try:
+                            raise ValueError("Simulated handler failure")
+                        except Exception as e:
+                            await gen.athrow(e)
+                    mock_rollback.assert_called_once()
 
         self.run_async(run_test())
 

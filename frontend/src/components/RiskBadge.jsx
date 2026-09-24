@@ -1,7 +1,13 @@
 import React from 'react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 
+/**
+ * RiskBadge — Enterprise SOC severity badge.
+ * Recreated from friend's exact design language:
+ * - rounded-full pill badge
+ * - score number
+ * - vertical separator border
+ * - uppercase severity label
+ */
 const RiskBadge = ({ score, showLabel = true, className = "" }) => {
   const getRiskDetails = (s) => {
     if (s >= 85) {
@@ -32,11 +38,7 @@ const RiskBadge = ({ score, showLabel = true, className = "" }) => {
 
   return (
     <div
-      className={twMerge(
-        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border shrink-0",
-        styles,
-        className
-      )}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border shrink-0 ${styles} ${className}`}
     >
       <span>{score}</span>
       {showLabel && (
@@ -49,4 +51,3 @@ const RiskBadge = ({ score, showLabel = true, className = "" }) => {
 };
 
 export default RiskBadge;
-
