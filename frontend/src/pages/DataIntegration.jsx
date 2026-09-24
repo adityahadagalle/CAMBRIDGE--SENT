@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   DatabaseZap, 
   Radio, 
   ArrowRight, 
+  ArrowLeft,
   Check, 
   CheckCircle2, 
   Play, 
@@ -36,17 +38,15 @@ const simulateOrganizationAPI = {
   endpoint: 'GET /api/transactions',
   getTransaction(index) {
     const tx = getSyntheticTransaction(index);
-    const timeMatch = tx.timestamp ? tx.timestamp.match(/(\d{2}:\d{2}:\d{2})/) : null;
-    const formattedTime = timeMatch ? timeMatch[1] : '08:00:00';
     return {
       transactionId: tx.raw_tx_id || `ORG-TX-${String(index).padStart(4, '0')}`,
       sourceAccount: tx.sender_account,
       beneficiaryAccount: tx.receiver_account,
       amount: tx.amount,
       transactionTimestamp: tx.timestamp,
-      time: formattedTime,
+      time: tx.time,
       channel: tx.channel,
-      paymentMethod: PAYMENT_METHOD_MAP[tx.channel] || tx.channel || 'UPI',
+      paymentMethod: tx.payment_method || PAYMENT_METHOD_MAP[tx.channel] || 'UPI',
       sentinelTxId: tx.tx_id
     };
   }
@@ -59,6 +59,7 @@ const REPRESENTATIVE_MAPPINGS = [
 ];
 
 const DataIntegration = () => {
+  const navigate = useNavigate();
   // Connection Handshake State: 'DISCONNECTED' | 'REQUESTING' | 'RESPONDING' | 'AUTHENTICATING' | 'CONNECTED'
   const [apiConnectionState, setApiConnectionState] = useState('DISCONNECTED');
   const [handshakePacketPos, setHandshakePacketPos] = useState(0); // 0 = idle, 1 = outbound, 2 = inbound, 3 = locked
@@ -66,8 +67,8 @@ const DataIntegration = () => {
   // Analysis Pipeline Initialization: 'OFFLINE' | 'INIT_TRANSACTION' | 'INIT_RISK' | 'INIT_ML' | 'INIT_GRAPH' | 'LIVE'
   const [analysisState, setAnalysisState] = useState('OFFLINE');
 
-  // Stream State Machine: 'IDLE' | 'INITIALIZING' | 'STREAMING' | 'PAUSED' | 'COMPLETE'
-  const [streamStatus, setStreamStatus] = useState('IDLE');
+  // Stream State Machine: 'IDLE' | 'DATASET_READY' | 'CONNECTED' | 'INGESTION_READY' | 'STREAMING' | 'PAUSED' | 'COMPLETE'
+  const [streamState, setStreamState] = useState('DATASET_READY');
   const [receivedCount, setReceivedCount] = useState(0);
   const [streamedTransactions, setStreamedTransactions] = useState([]);
   const [streamSpeed, setStreamSpeed] = useState('5x');
@@ -107,11 +108,11 @@ const DataIntegration = () => {
     setTimeout(() => {
       // Phase D: Connection Lock Established
       setApiConnectionState('CONNECTED');
+      setStreamState((prev) => (prev === 'DATASET_READY' || prev === 'IDLE' ? 'INGESTION_READY' : prev));
     }, 1250);
   };
 
   // Start Transaction Stream & Initialize Analysis Pipeline
-  // Sequence: Ingestion Gate -> Transaction Engine -> Risk Engine -> ML Analysis -> Graph Analysis -> Live Stream!
   const handleStartStream = () => {
     if (apiConnectionState !== 'CONNECTED') {
       handleConnectAPI();
@@ -121,7 +122,7 @@ const DataIntegration = () => {
       return;
     }
 
-    if (streamStatus === 'COMPLETE') {
+    if (streamState === 'COMPLETE') {
       countRef.current = 0;
       setReceivedCount(0);
       setStreamedTransactions([]);
@@ -130,8 +131,13 @@ const DataIntegration = () => {
       return;
     }
 
+    if (streamState === 'PAUSED') {
+      handleResumeStream();
+      return;
+    }
+
     if (analysisState === 'LIVE') {
-      setStreamStatus('STREAMING');
+      setStreamState('STREAMING');
       return;
     }
 
@@ -139,7 +145,7 @@ const DataIntegration = () => {
   };
 
   const initAnalysisAndStream = () => {
-    setStreamStatus('INITIALIZING');
+    setStreamState('STREAMING');
     setAnalysisState('INIT_TRANSACTION');
 
     setTimeout(() => {
@@ -156,16 +162,22 @@ const DataIntegration = () => {
 
     setTimeout(() => {
       setAnalysisState('LIVE');
-      setStreamStatus('STREAMING');
     }, 1600);
   };
 
-  // Pause Stream
+  // Pause Stream - immediately halts additions and freezes animations
   const handlePauseStream = () => {
-    setStreamStatus('PAUSED');
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (durationTimerRef.current) clearInterval(durationTimerRef.current);
+    setStreamState('PAUSED');
   };
 
-  // Reset Everything to Initial Disconnected / Offline State
+  // Resume Stream - continues from exactly the next transaction without restarting
+  const handleResumeStream = () => {
+    setStreamState('STREAMING');
+  };
+
+  // Reset Everything to Initial Dataset-Ready State
   const handleReset = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     if (durationTimerRef.current) clearInterval(durationTimerRef.current);
@@ -174,7 +186,7 @@ const DataIntegration = () => {
     setApiConnectionState('DISCONNECTED');
     setHandshakePacketPos(0);
     setAnalysisState('OFFLINE');
-    setStreamStatus('IDLE');
+    setStreamState('DATASET_READY');
     setReceivedCount(0);
     setStreamedTransactions([]);
     setDurationSeconds(0);
@@ -187,6 +199,7 @@ const DataIntegration = () => {
     }
     setAnalysisState('LIVE');
 
+    const wasPaused = streamState === 'PAUSED';
     const finalCount = TOTAL_DATASET_RECORDS;
     countRef.current = finalCount;
     setReceivedCount(finalCount);
@@ -200,17 +213,23 @@ const DataIntegration = () => {
     if (durationSeconds === 0) {
       setDurationSeconds(16);
     }
-    setStreamStatus('COMPLETE');
+
+    // Preserve paused state if fast-forward is triggered while paused
+    if (wasPaused) {
+      setStreamState('PAUSED');
+    } else {
+      setStreamState('COMPLETE');
+    }
   };
 
   // Stream interval timer
   useEffect(() => {
-    if (streamStatus === 'STREAMING') {
+    if (streamState === 'STREAMING') {
       const intervalMs = streamSpeed === '10x' ? 60 : streamSpeed === '5x' ? 200 : 700;
 
       timerRef.current = setInterval(() => {
         if (countRef.current >= TOTAL_DATASET_RECORDS) {
-          setStreamStatus('COMPLETE');
+          setStreamState('COMPLETE');
           return;
         }
 
@@ -228,7 +247,7 @@ const DataIntegration = () => {
         });
 
         if (currentIdx >= TOTAL_DATASET_RECORDS) {
-          setStreamStatus('COMPLETE');
+          setStreamState('COMPLETE');
         }
       }, intervalMs);
 
@@ -245,24 +264,25 @@ const DataIntegration = () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (durationTimerRef.current) clearInterval(durationTimerRef.current);
     };
-  }, [streamStatus, streamSpeed]);
+  }, [streamState, streamSpeed]);
 
   // Derived progress percentage
   const progressPercent = ((receivedCount / TOTAL_DATASET_RECORDS) * 100).toFixed(1);
 
   const isConnected = apiConnectionState === 'CONNECTED';
   const isConnecting = apiConnectionState === 'REQUESTING' || apiConnectionState === 'RESPONDING' || apiConnectionState === 'AUTHENTICATING';
-  const isInitializing = streamStatus === 'INITIALIZING';
-  const isStreaming = streamStatus === 'STREAMING';
-  const isPaused = streamStatus === 'PAUSED';
-  const isComplete = streamStatus === 'COMPLETE';
+  const isStreaming = streamState === 'STREAMING';
+  const isPaused = streamState === 'PAUSED';
+  const isComplete = streamState === 'COMPLETE';
+  const isInitializing = analysisState !== 'OFFLINE' && analysisState !== 'LIVE';
+  const streamStatus = streamState; // alias for compatibility
 
   // Dynamic particle speed duration linked to streamSpeed controls
   const particleFlowDuration = streamSpeed === '10x' ? '0.35s' : streamSpeed === '5x' ? '0.8s' : '2.0s';
   const animPlayState = isPaused ? 'paused' : 'running';
 
   return (
-    <div className="min-h-full bg-[#060D1A] text-slate-100 p-3 sm:p-4 lg:p-5 space-y-4">
+    <div className={`min-h-full bg-[#060D1A] text-slate-100 p-3 sm:p-4 lg:p-5 space-y-4 ${isPaused ? 'stream-paused' : ''}`}>
       
       {/* Scoped CSS animations for enterprise flow */}
       <style>{`
@@ -348,6 +368,11 @@ const DataIntegration = () => {
           animation: completionWave 1.4s ease-out;
         }
 
+        .stream-paused,
+        .stream-paused * {
+          animation-play-state: paused !important;
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .animate-conduit-flow, .animate-packet-forward, .animate-packet-reverse,
           .animate-row-enter, .animate-arrival-glow, .animate-gateway-portal,
@@ -365,6 +390,20 @@ const DataIntegration = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-800/80">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                if (window.history.state && window.history.state.idx > 0) {
+                  navigate(-1);
+                } else {
+                  navigate('/feed');
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 text-xs font-mono font-bold tracking-wider transition-all duration-150 shadow-sm cursor-pointer mr-1"
+              title="Return to previous page"
+            >
+              <span>← BACK</span>
+            </button>
             <div className="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400">
               <DatabaseZap className="w-4 h-4" />
             </div>
@@ -719,11 +758,13 @@ const DataIntegration = () => {
               <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition-all ${
                 isStreaming
                   ? 'text-cyan-300 bg-cyan-500/10 border border-cyan-500/30'
+                  : isPaused
+                  ? 'text-amber-300 bg-amber-500/10 border border-amber-500/30'
                   : isConnected 
                   ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' 
                   : 'text-slate-500'
               }`}>
-                {isStreaming ? 'GATEWAY ACTIVE' : isConnected ? 'STATUS: READY' : 'STANDBY'}
+                {isStreaming ? 'GATEWAY ACTIVE' : isPaused ? 'GATEWAY PAUSED' : isConnected ? 'STATUS: READY' : 'STANDBY'}
               </span>
             </div>
 
@@ -735,13 +776,23 @@ const DataIntegration = () => {
           <div className="pt-2 border-t border-slate-800/60">
             <button
               type="button"
-              onClick={handleStartStream}
+              onClick={
+                !isConnected
+                  ? handleStartStream
+                  : isStreaming
+                  ? handlePauseStream
+                  : isPaused
+                  ? handleResumeStream
+                  : handleStartStream
+              }
               disabled={!isConnected}
               className={`w-full py-1.5 rounded-md text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 ${
                 !isConnected
                   ? 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700/50'
                   : isStreaming
-                  ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                  ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                  : isPaused
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)]'
                   : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]'
               }`}
             >
@@ -749,6 +800,16 @@ const DataIntegration = () => {
                 <>
                   <Pause className="w-3 h-3 fill-white" />
                   <span>PAUSE STREAM</span>
+                </>
+              ) : isPaused ? (
+                <>
+                  <Play className="w-3 h-3 fill-white" />
+                  <span>RESUME STREAM</span>
+                </>
+              ) : isComplete ? (
+                <>
+                  <Play className="w-3 h-3 fill-white" />
+                  <span>RE-STREAM</span>
                 </>
               ) : (
                 <>
@@ -898,15 +959,24 @@ const DataIntegration = () => {
               ))}
             </div>
 
-            {/* Play/Pause */}
+            {/* Play/Pause/Resume */}
             {isStreaming ? (
               <button
                 type="button"
                 onClick={handlePauseStream}
-                className="flex items-center gap-1 px-3 py-1 rounded-md text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white transition-all shadow-sm"
+                className="flex items-center gap-1 px-3 py-1 rounded-md text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white transition-all shadow-sm shadow-amber-500/20"
               >
                 <Pause className="w-3 h-3 fill-white" />
                 <span>Pause</span>
+              </button>
+            ) : isPaused ? (
+              <button
+                type="button"
+                onClick={handleResumeStream}
+                className="flex items-center gap-1 px-3 py-1 rounded-md text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm shadow-emerald-500/20"
+              >
+                <Play className="w-3 h-3 fill-white" />
+                <span>Resume</span>
               </button>
             ) : (
               <button
@@ -920,7 +990,7 @@ const DataIntegration = () => {
                 }`}
               >
                 <Play className="w-3 h-3 fill-white" />
-                <span>{streamStatus === 'PAUSED' ? 'Resume' : streamStatus === 'COMPLETE' ? 'Re-stream' : 'Stream'}</span>
+                <span>{isComplete ? 'Re-stream' : 'Stream'}</span>
               </button>
             )}
 
@@ -1052,17 +1122,28 @@ const DataIntegration = () => {
       </div>
 
       {/* ============================================================ */}
-      {/* 6. CONCISE PRODUCTION NOTE                                   */}
+      {/* 6. CONCISE PRODUCTION & REGULATORY SPECIFICATIONS            */}
       {/* ============================================================ */}
       <div className="bg-[#0B1120] border border-slate-800/80 rounded-lg p-3 text-xs flex items-start gap-2.5">
         <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-        <div>
-          <span className="font-bold text-slate-200 uppercase tracking-wide text-[11px] block">
-            DEMONSTRATION MODE
-          </span>
-          <p className="text-slate-400 mt-0.5 leading-relaxed text-[11px]">
+        <div className="space-y-1.5 w-full">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-slate-200 uppercase tracking-wide text-[11px] block">
+              DEMONSTRATION MODE & PAYMENT RAIL SPECIFICATIONS
+            </span>
+            <span className="text-[10px] font-mono text-slate-500">
+              SYNTHETIC DATASET · 5,000 RECORDS
+            </span>
+          </div>
+          <p className="text-slate-400 leading-relaxed text-[11px]">
             This page simulates an authorized organization API using synthetic transaction data. In production, the simulated source can be replaced by an organization's authorized API, secure transaction stream, or approved system connector.
           </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5 pt-1.5 text-[10px] text-slate-400 border-t border-slate-800/60 font-mono">
+            <div>• <strong className="text-slate-300">UPI:</strong> UPI demo transactions use the standard ₹1 lakh P2P ceiling. Certain permitted UPI categories may have higher NPCI limits.</div>
+            <div>• <strong className="text-slate-300">NEFT:</strong> NEFT has no RBI-imposed transaction ceiling; participating banks may apply their own limits.</div>
+            <div>• <strong className="text-slate-300">NET BANKING:</strong> Transaction amounts reflect institution- and account-profile specific transaction thresholds.</div>
+            <div>• <strong className="text-slate-300">CARD:</strong> Retail/commercial payment card amounts are governed by cardholder credit limits and issuing bank parameters.</div>
+          </div>
         </div>
       </div>
 

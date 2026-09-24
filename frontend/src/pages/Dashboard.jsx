@@ -1164,14 +1164,34 @@ const PaymentChannelRiskProfile = React.memo(({ channelPerf, totalTx, timeframe 
 });
 
 const Dashboard = () => {
-  const { connectionStatus } = useWebSocket();
+  const { connectionStatus, lastTxEvent } = useWebSocket();
   const [timeframe, setTimeframe] = useState('30d');
   const [analyticsData, setAnalyticsData] = useState(null);
   const [hoveredAction, setHoveredAction] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Set of already processed transaction IDs to avoid double-counting
+  const processedTxIdsRef = useRef(new Set());
+  const debounceFetchTimeoutRef = useRef(null);
+
   const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
+  // Helper to test if a transaction timestamp is within the active timeframe
+  const isTxInTimeframe = useCallback((txTimestamp, currentTf) => {
+    if (!txTimestamp) return true;
+    const txTime = new Date(txTimestamp).getTime();
+    if (isNaN(txTime)) return true;
+    const now = Date.now();
+    const deltaMap = {
+      '24h': 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000,
+      '30d': 30 * 24 * 60 * 60 * 1000,
+      '12m': 365 * 24 * 60 * 60 * 1000,
+    };
+    const maxAge = deltaMap[currentTf] || deltaMap['30d'];
+    return (now - txTime) <= maxAge;
+  }, []);
 
   // Fetch real analytics telemetry from backend
   const fetchAnalytics = useCallback(async () => {
@@ -1212,6 +1232,147 @@ const Dashboard = () => {
     }
   }, [timeframe, API_BASE]);
 
+  // Real-time incremental ingestion handler (responding to the same live stream as SENTINEL)
+  const handleIncomingTransaction = useCallback((tx) => {
+    if (!tx || !tx.tx_id) return;
+    if (processedTxIdsRef.current.has(tx.tx_id)) return;
+    processedTxIdsRef.current.add(tx.tx_id);
+    if (processedTxIdsRef.current.size > 2000) {
+      const it = processedTxIdsRef.current.values();
+      for (let i = 0; i < 500; i++) processedTxIdsRef.current.delete(it.next().value);
+    }
+
+    if (!isTxInTimeframe(tx.timestamp, timeframe)) {
+      return;
+    }
+
+    const score = Number(tx.risk_score ?? 0);
+    const amt = Number(tx.amount ?? 0);
+    const isAlert = score >= 40;
+    const tierName = score >= 85 ? 'CRITICAL' : score >= 70 ? 'HIGH' : score >= 40 ? 'MEDIUM' : 'LOW';
+
+    setAnalyticsData((prev) => {
+      if (!prev) return prev;
+      const prevKpis = prev.kpis || { total_transactions: 0, risk_alerts: 0, avg_risk_score: 0, cases_resolved: 0 };
+      const prevTotal = Number(prevKpis.total_transactions || 0);
+      const newTotal = prevTotal + 1;
+      const newAlerts = Number(prevKpis.risk_alerts || 0) + (isAlert ? 1 : 0);
+      const prevAvg = Number(prevKpis.avg_risk_score || 0);
+      const newAvg = prevTotal > 0 ? Number((((prevTotal * prevAvg) + score) / newTotal).toFixed(1)) : score;
+
+      const prevDist = (prev.alerts_by_risk_level && prev.alerts_by_risk_level.length === 4)
+        ? prev.alerts_by_risk_level
+        : [
+          { name: 'CRITICAL', value: 0, color: '#ef4444', percentage: 0, volume: 0, avg_score: 0, threshold: 'Score ≥ 85', guidance: 'Immediate automated block or hard freeze' },
+          { name: 'HIGH', value: 0, color: '#f59e0b', percentage: 0, volume: 0, avg_score: 0, threshold: 'Score 70–84', guidance: 'Enhanced monitoring and analyst escalation' },
+          { name: 'MEDIUM', value: 0, color: '#38bdf8', percentage: 0, volume: 0, avg_score: 0, threshold: 'Score 40–69', guidance: 'Automated telemetry and rule screening' },
+          { name: 'LOW', value: 0, color: '#10b981', percentage: 0, volume: 0, avg_score: 0, threshold: 'Score < 40', guidance: 'Normal baseline transaction routing' }
+        ];
+
+      const updatedDist = prevDist.map((tier) => {
+        const isCurrentTier = tier.name === tierName;
+        const tierVal = (tier.value || 0) + (isCurrentTier ? 1 : 0);
+        const tierVol = (tier.volume || 0) + (isCurrentTier ? amt : 0);
+        const tierScoresSum = ((tier.avg_score || 0) * (tier.value || 0)) + (isCurrentTier ? score : 0);
+        const tierAvg = tierVal > 0 ? Number((tierScoresSum / tierVal).toFixed(1)) : 0;
+        const pct = newTotal > 0 ? Number(((tierVal / newTotal) * 100).toFixed(1)) : 0;
+        return {
+          ...tier,
+          value: tierVal,
+          percentage: pct,
+          volume: tierVol,
+          avg_score: tierAvg
+        };
+      });
+
+      const prevTrend = prev.risk_trend || [];
+      let txTimeStr;
+      if (tx.timestamp && String(tx.timestamp).includes('T')) {
+        txTimeStr = String(tx.timestamp).split('T')[1].slice(0, 5);
+      } else if (tx.timestamp) {
+        try {
+          txTimeStr = new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        } catch {
+          txTimeStr = 'Now';
+        }
+      } else {
+        txTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      }
+
+      const newTrendPoint = {
+        timestamp: txTimeStr,
+        avg_score: score,
+        high_risk: (score >= 70 && score < 85) ? 1 : 0,
+        critical_risk: score >= 85 ? 1 : 0
+      };
+      const nextTrend = [...prevTrend, newTrendPoint].slice(-10);
+
+      const rawCh = (tx.channel || 'UPI').toUpperCase().replace(' ', '');
+      const prevChannels = prev.channel_performance || [];
+      const updatedChannels = prevChannels.map((ch) => {
+        const chKey = (ch.channel || '').toUpperCase().replace(' ', '');
+        if (chKey === rawCh || rawCh.includes(chKey) || chKey.includes(rawCh)) {
+          const newCount = (ch.tx_count || 0) + 1;
+          const newAmt = (ch.total_amount || 0) + amt;
+          const prevRiskCount = Math.round(((ch.risk_rate || 0) / 100) * (ch.tx_count || 0));
+          const newRiskCount = prevRiskCount + (isAlert ? 1 : 0);
+          const newRiskRate = newCount > 0 ? Number(((newRiskCount / newCount) * 100).toFixed(1)) : 0;
+          return { ...ch, tx_count: newCount, total_amount: newAmt, risk_rate: newRiskRate };
+        }
+        return ch;
+      });
+
+      return {
+        ...prev,
+        kpis: {
+          ...prevKpis,
+          total_transactions: newTotal,
+          risk_alerts: newAlerts,
+          avg_risk_score: newAvg
+        },
+        alerts_by_risk_level: updatedDist,
+        risk_distribution: updatedDist,
+        risk_trend: nextTrend,
+        channel_performance: updatedChannels
+      };
+    });
+
+    // Debounce background full fetch to re-sync complete backend graph/case state
+    if (debounceFetchTimeoutRef.current) {
+      clearTimeout(debounceFetchTimeoutRef.current);
+    }
+    debounceFetchTimeoutRef.current = setTimeout(() => {
+      fetchAnalytics();
+    }, 600);
+  }, [timeframe, isTxInTimeframe, fetchAnalytics]);
+
+  // Hook into WebSocket lastTxEvent for real-time telemetry updates
+  useEffect(() => {
+    if (lastTxEvent) {
+      handleIncomingTransaction(lastTxEvent);
+    }
+  }, [lastTxEvent, handleIncomingTransaction]);
+
+  // Hook into custom window event 'sentinel_alert' for cross-component live alerts
+  useEffect(() => {
+    const handleSentinelAlert = (e) => {
+      if (e.detail) {
+        handleIncomingTransaction(e.detail);
+      }
+    };
+    window.addEventListener('sentinel_alert', handleSentinelAlert);
+    return () => window.removeEventListener('sentinel_alert', handleSentinelAlert);
+  }, [handleIncomingTransaction]);
+
+  // Listen for case action / disposition events to keep cases resolved in sync
+  useEffect(() => {
+    const handleCaseAction = () => {
+      fetchAnalytics();
+    };
+    window.addEventListener('sentinel_transaction_action', handleCaseAction);
+    return () => window.removeEventListener('sentinel_transaction_action', handleCaseAction);
+  }, [fetchAnalytics]);
+
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
@@ -1219,7 +1380,12 @@ const Dashboard = () => {
   // Polling interval for live analytics telemetry
   useEffect(() => {
     const interval = setInterval(fetchAnalytics, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (debounceFetchTimeoutRef.current) {
+        clearTimeout(debounceFetchTimeoutRef.current);
+      }
+    };
   }, [fetchAnalytics]);
 
   // ── AUTHENTIC DATA EXTRACTION (NO HARDCODED FALLBACK NUMBERS) ───────────────

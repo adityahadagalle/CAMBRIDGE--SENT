@@ -1,7 +1,7 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, NavLink, Link, Navigate } from 'react-router-dom';
 import { useWebSocket } from './hooks/useWebSocket';
-import { Activity, LayoutDashboard, Briefcase, Shield, LogOut, ShieldAlert, Brain, FlaskConical, DatabaseZap } from 'lucide-react';
+import { Activity, LayoutDashboard, Briefcase, Shield, LogOut, ShieldAlert, Brain, FlaskConical, DatabaseZap, ArrowRight } from 'lucide-react';
 
 // Pages
 import Feed from './pages/Feed';
@@ -126,6 +126,21 @@ const App = () => {
               )}
               <AttackModeToggle />
               <PresentationModeToggle />
+
+              {/* Dedicated Data Integration Action Button */}
+              <div className="pt-2 border-t border-border/50">
+                <Link
+                  to="/data-integration"
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 hover:text-sky-300 border border-sky-500/30 text-[11px] font-mono font-bold tracking-wider transition-all duration-150 shadow-sm group"
+                  title="Open simulated organization data integration pipeline"
+                >
+                  <div className="flex items-center gap-2">
+                    <DatabaseZap className="w-3.5 h-3.5 text-sky-400 group-hover:scale-110 transition-transform" />
+                    <span>DATA INTEGRATION</span>
+                  </div>
+                  <ArrowRight className="w-3 h-3 text-sky-400/80 group-hover:translate-x-0.5 transition-transform" />
+                </Link>
+              </div>
             </div>
 
 
@@ -154,10 +169,6 @@ const App = () => {
               <NavLink to="/benchmark" className={navItemClass}>
                 <FlaskConical className="w-4 h-4 shrink-0" />
                 <span>Benchmark Lab</span>
-              </NavLink>
-              <NavLink to="/data-integration" className={navItemClass}>
-                <DatabaseZap className="w-4 h-4 shrink-0" />
-                <span>Data Integration</span>
               </NavLink>
             </nav>
           </div>

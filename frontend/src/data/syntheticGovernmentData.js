@@ -108,11 +108,64 @@ const BENEFICIARIES = [
   { receiver: "ACC-GRAIN-STORAGE-119", raw: "WAREHOUSING_AGENCY_119" }
 ];
 
-const BASE_AMOUNTS = [
-  2845000.0, 14750000.0, 4890000.0, 1250000.0, 875000.0, 3620000.0,
-  7420000.0, 5000000.0, 9800000.0, 640000.0, 23500000.0, 4120000.0,
-  1850000.0, 920000.0, 6300000.0, 11400000.0, 3200000.0, 780000.0
-];
+export const PAYMENT_METHOD_MAP = {
+  'PFMS_DBT': 'UPI',
+  'TREASURY_RTGS': 'NEFT',
+  'NEFT_GOV': 'NET BANKING',
+  'STATE_DISB_PORTAL': 'CARD'
+};
+
+/**
+ * Generates realistic demonstration transaction amounts tailored to the specific payment method.
+ *
+ * Demonstration Ranges (not claimed universal statutory limits):
+ * - UPI:          ₹500 – ₹1,00,000 (strictly <= ₹1,00,000 for standard general demo transactions)
+ * - NEFT:         ₹10,000 – ₹25,00,000 (no RBI-imposed transaction ceiling; realistic higher-value transfers)
+ * - NET BANKING:  ₹1,000 – ₹5,00,000 (institution/account profile dependent access rail)
+ * - CARD:         ₹500 – ₹2,00,000 (realistic retail/commercial payment card range)
+ */
+export function generateRealisticAmount(channel, index) {
+  const i = Math.max(0, index - 1);
+  const method = PAYMENT_METHOD_MAP[channel] || 'UPI';
+
+  switch (method) {
+    case 'UPI': {
+      // Range: ₹500 to ₹1,00,000 (Strictly <= 100,000)
+      const spread = 99500;
+      const step = 50;
+      const hash = ((i * 7919) + (i % 7) * 313) % spread;
+      const rounded = Math.floor(hash / step) * step;
+      return Math.min(100000, Math.max(500, 500 + rounded));
+    }
+    case 'NEFT': {
+      // Range: ₹10,000 to ₹25,00,000 (Realistic higher-value transfers)
+      const spread = 2490000;
+      const step = 1000;
+      const hash = ((i * 104729) + (i % 11) * 719) % spread;
+      const rounded = Math.floor(hash / step) * step;
+      return Math.min(2500000, Math.max(10000, 10000 + rounded));
+    }
+    case 'NET BANKING': {
+      // Range: ₹1,000 to ₹5,00,000 (Account/bank dependent access rail)
+      const spread = 499000;
+      const step = 500;
+      const hash = ((i * 48611) + (i % 13) * 443) % spread;
+      const rounded = Math.floor(hash / step) * step;
+      return Math.min(500000, Math.max(1000, 1000 + rounded));
+    }
+    case 'CARD': {
+      // Range: ₹500 to ₹2,00,000 (Retail/corporate payment card range)
+      const spread = 199500;
+      const step = 100;
+      const hash = ((i * 32467) + (i % 17) * 521) % spread;
+      const rounded = Math.floor(hash / step) * step;
+      return Math.min(200000, Math.max(500, 500 + rounded));
+    }
+    default: {
+      return 25000;
+    }
+  }
+}
 
 /**
  * Deterministically generates a single synthetic transaction record for a given index (1 to 5000).
@@ -121,13 +174,15 @@ export function getSyntheticTransaction(index) {
   const i = Math.max(0, index - 1);
   const dept = DEPARTMENTS[i % DEPARTMENTS.length];
   const ben = BENEFICIARIES[(i * 7 + 3) % BENEFICIARIES.length];
-  const amt = BASE_AMOUNTS[(i * 3 + 1) % BASE_AMOUNTS.length] + ((i * 13700) % 250000);
+  const amt = generateRealisticAmount(dept.channel, index);
+  const paymentMethod = PAYMENT_METHOD_MAP[dept.channel] || 'UPI';
   
   // Format pseudo-time from 08:00:00 UTC forward across the day
   const baseSeconds = 8 * 3600 + Math.floor((i / TOTAL_DATASET_RECORDS) * (11.5 * 3600));
   const hh = String(Math.floor(baseSeconds / 3600)).padStart(2, '0');
   const mm = String(Math.floor((baseSeconds % 3600) / 60)).padStart(2, '0');
   const ss = String(baseSeconds % 60).padStart(2, '0');
+  const timeFormatted = `${hh}:${mm}:${ss}`;
 
   return {
     index: index,
@@ -138,8 +193,10 @@ export function getSyntheticTransaction(index) {
     receiver_account: ben.receiver,
     raw_receiver: ben.raw,
     amount: amt,
-    timestamp: `2026-05-18 ${hh}:${mm}:${ss} UTC`,
+    timestamp: `2026-05-18 ${timeFormatted} UTC`,
+    time: timeFormatted,
     channel: dept.channel,
+    payment_method: paymentMethod,
     scheme_tag: dept.scheme,
     status: "NORMALIZED"
   };

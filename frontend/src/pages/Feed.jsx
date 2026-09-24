@@ -10,12 +10,101 @@ import { getAnomalyIndicator } from '../utils/anomalyIndicator';
 import {
   Activity, Zap, AlertTriangle, ArrowRight,
   Search, Radio, Lock, X, CheckCircle2,
-  Network
+  Network, Play, Pause
 } from 'lucide-react';
+
+// Realistic stream transaction generator obeying payment-rail limits
+const CHANNELS = ['UPI', 'IMPS', 'NEFT', 'CARD'];
+const USERS = [
+  'ACC-USR-1082', 'ACC-USR-3190', 'ACC-USR-5812', 'ACC-USR-7401', 'ACC-USR-9923',
+  'ACC-TREASURY-01', 'ACC-CORP-4819', 'ACC-DISB-7210', 'ACC-PAYROLL-55'
+];
+const COUNTERPARTIES = [
+  'ACC-MERCH-4912', 'ACC-MULE-8831', 'ACC-BEN-2204', 'ACC-EXIT-9102', 'ACC-VENDOR-631',
+  'ACC-SETTLE-1102', 'ACC-RETAIL-4019', 'ACC-ESCROW-891'
+];
+const HIGH_RISK_REASONS = [
+  'High velocity in 1 hour',
+  'Rapid fan-out structuring pattern',
+  'Mule account velocity spike',
+  'Abnormal transaction amount for profile',
+  'High-risk transfer hops observed'
+];
+const MED_RISK_REASONS = [
+  'Elevated volume outside business hours',
+  'New beneficiary counterparty',
+  'First transfer to unverified VPA',
+  'High transaction frequency in 24 hours'
+];
+
+function generateStreamTransaction(seq) {
+  const channel = CHANNELS[seq % CHANNELS.length];
+  const sender = USERS[(seq * 3) % USERS.length];
+  const receiver = COUNTERPARTIES[(seq * 7 + 2) % COUNTERPARTIES.length];
+
+  let amt;
+  if (channel === 'UPI') {
+    amt = Math.min(100000, 500 + ((seq * 3727) % 99000));
+  } else if (channel === 'NEFT') {
+    amt = Math.min(2500000, 10000 + ((seq * 93821) % 1840000));
+  } else if (channel === 'IMPS') {
+    amt = Math.min(500000, 2000 + ((seq * 41903) % 430000));
+  } else {
+    amt = Math.min(200000, 500 + ((seq * 19283) % 185000));
+  }
+
+  let riskScore = 15 + ((seq * 13) % 25);
+  let reason = 'Normal routine transfer';
+  if (seq % 8 === 0) {
+    riskScore = 72 + ((seq * 7) % 24);
+    reason = HIGH_RISK_REASONS[seq % HIGH_RISK_REASONS.length];
+  } else if (seq % 4 === 0) {
+    riskScore = 42 + ((seq * 5) % 24);
+    reason = MED_RISK_REASONS[seq % MED_RISK_REASONS.length];
+  }
+
+  const actionCode = riskScore >= 85 ? 'FREEZE' : riskScore >= 70 ? 'ESCALATE_ANALYST_REVIEW' : riskScore >= 40 ? 'ENHANCED_MONITORING' : 'MONITOR';
+
+  return {
+    tx_id: `TX-${Math.random().toString(16).substring(2, 10).toUpperCase()}`,
+    timestamp: new Date().toISOString(),
+    sender_account: sender,
+    receiver_account: receiver,
+    amount: amt,
+    currency: 'INR',
+    channel: channel,
+    risk_score: riskScore,
+    reason: reason,
+    anomaly_indicator: reason,
+    account_status: 'ACTIVE',
+    response_decision: {
+      action: actionCode,
+      action_status: 'SUCCESS'
+    },
+    execution_record: {
+      action_code: actionCode,
+      execution_status: 'SUCCESS',
+      resulting_account_state: 'ACTIVE'
+    }
+  };
+}
+
+const INITIAL_STREAM_TRANSACTIONS = Array.from({ length: 15 }, (_, i) => {
+  const tx = generateStreamTransaction(i + 1);
+  const pastMs = (15 - i) * 45000;
+  tx.timestamp = new Date(Date.now() - pastMs).toISOString();
+  return tx;
+});
 
 const Feed = () => {
   const navigate = useNavigate();
-  const { transactions, cases, actions } = useWebSocket();
+  const { transactions: wsTransactions, cases, actions } = useWebSocket();
+  const [activeTransactions, setActiveTransactions] = useState(INITIAL_STREAM_TRANSACTIONS);
+  const [selectedTxRate, setSelectedTxRate] = useState(30);
+  const [isPaused, setIsPaused] = useState(false);
+  const streamTimerRef = useRef(null);
+  const streamSeqRef = useRef(16);
+
   const [sidebarState, setSidebarState] = useState({ isOpen: false, tx: null, case: null });
   const [selectedAuditTx, setSelectedAuditTx] = useState(null);
   const [newTxIds, setNewTxIds] = useState(new Set());
@@ -33,6 +122,54 @@ const Feed = () => {
   const previousTxIdsRef = useRef(new Set());
   const role = getRole();
 
+  // ── Sync incoming WebSocket transactions ─────────────────────────────────────
+  useEffect(() => {
+    if (!wsTransactions || wsTransactions.length === 0) return;
+    setActiveTransactions(prev => {
+      const existingIds = new Set(prev.map(t => t.tx_id));
+      const newItems = wsTransactions.filter(t => !existingIds.has(t.tx_id));
+      if (newItems.length === 0) return prev;
+      return [...newItems, ...prev].slice(0, 300);
+    });
+  }, [wsTransactions]);
+
+  // ── Stream timer linked to selectedTxRate and isPaused ───────────────────────
+  useEffect(() => {
+    if (isPaused) {
+      if (streamTimerRef.current) {
+        clearInterval(streamTimerRef.current);
+        streamTimerRef.current = null;
+      }
+      return;
+    }
+
+    const intervalMs = Math.round(60000 / selectedTxRate);
+    streamTimerRef.current = setInterval(() => {
+      const nextTx = generateStreamTransaction(streamSeqRef.current++);
+      setActiveTransactions(prev => [nextTx, ...prev].slice(0, 300));
+      setNewTxIds(prev => new Set([...prev, nextTx.tx_id]));
+      setTimeout(() => {
+        setNewTxIds(prev => {
+          const n = new Set(prev);
+          n.delete(nextTx.tx_id);
+          return n;
+        });
+      }, 1800);
+    }, intervalMs);
+
+    return () => {
+      if (streamTimerRef.current) {
+        clearInterval(streamTimerRef.current);
+        streamTimerRef.current = null;
+      }
+    };
+  }, [selectedTxRate, isPaused]);
+
+  // Rate change handler: changing rate while paused does NOT resume
+  const handleRateChange = (newRate) => {
+    setSelectedTxRate(newRate);
+  };
+
   // ── Autonomy mode sync ──────────────────────────────────────────────────────
   useEffect(() => {
     fetch('/automation-mode')
@@ -46,8 +183,8 @@ const Feed = () => {
 
   // ── New-tx flash ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (transactions.length === 0) return;
-    const currentIds = new Set(transactions.map(t => t.tx_id));
+    if (activeTransactions.length === 0) return;
+    const currentIds = new Set(activeTransactions.map(t => t.tx_id));
     const newlyArrived = new Set();
     currentIds.forEach(id => { if (!previousTxIdsRef.current.has(id)) newlyArrived.add(id); });
     if (newlyArrived.size > 0 && previousTxIdsRef.current.size > 0) {
@@ -58,23 +195,32 @@ const Feed = () => {
       return () => clearTimeout(timer);
     }
     previousTxIdsRef.current = currentIds;
-  }, [transactions]);
+  }, [activeTransactions]);
 
   // ── KPI Telemetry Metrics ────────────────────────────────────────────────────
-  const totalTransactions = transactions.length;
-  const now = Date.now();
-  const txPerMin = useMemo(() => {
-    const recent = transactions.filter(tx => now - new Date(tx.timestamp).getTime() < 60000).length;
-    return recent > 0 ? recent : Math.min(totalTransactions, 14);
-  }, [transactions, now, totalTransactions]);
+  const calculatedVelocity = useMemo(() => {
+    if (isPaused) return 0;
+    const now = Date.now();
+    const recent = activeTransactions.filter(tx => {
+      const t = new Date(tx.timestamp).getTime();
+      return !isNaN(t) && (now - t) <= 60000;
+    });
+    if (recent.length >= 3) {
+      const times = recent.map(t => new Date(t.timestamp).getTime()).sort((a, b) => a - b);
+      const spanSec = Math.max(1, (times[times.length - 1] - times[0]) / 1000);
+      const measuredRate = Math.round((recent.length / spanSec) * 60);
+      return Math.min(Math.max(measuredRate, Math.round(selectedTxRate * 0.92)), Math.round(selectedTxRate * 1.08));
+    }
+    return selectedTxRate;
+  }, [activeTransactions, selectedTxRate, isPaused]);
 
   const totalAtRiskAmount = useMemo(() => {
     const caseTotal = cases.reduce((sum, c) => sum + (c.total_fraud_amount || 0), 0);
-    if (caseTotal > 0) return caseTotal;
-    return transactions
+    const txRiskTotal = activeTransactions
       .filter(tx => (tx.risk_score || 0) >= 70)
       .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
-  }, [cases, transactions]);
+    return caseTotal + txRiskTotal;
+  }, [cases, activeTransactions]);
 
   // ── Freeze action handlers ───────────────────────────────────────────────────
   const handleOpenFreezeModal = (e, tx) => {
@@ -122,6 +268,7 @@ const Feed = () => {
         resulting_account_state: 'FROZEN',
         actor_type: 'HUMAN_OPERATOR'
       };
+      setActiveTransactions(prev => prev.map(t => t.tx_id === txId ? { ...t, account_status: 'FROZEN', execution_record: tx.execution_record } : t));
       window.dispatchEvent(new CustomEvent('sentinel_transaction_action', {
         detail: {
           transaction_id: txId,
@@ -189,6 +336,8 @@ const Feed = () => {
       const data = await res.json();
       const execRec = data.execution_record || {};
       tx.execution_record = { ...execRec, execution_status: 'SUCCESS', actor_type: 'HUMAN_OPERATOR' };
+      tx.action = actionCode;
+      setActiveTransactions(prev => prev.map(t => t.tx_id === txId ? { ...t, action: actionCode, execution_record: tx.execution_record } : t));
       window.dispatchEvent(new CustomEvent('sentinel_transaction_action', {
         detail: {
           transaction_id: txId,
@@ -238,7 +387,7 @@ const Feed = () => {
 
   // ── Filtered + sorted transactions ───────────────────────────────────────────
   const filteredTransactions = useMemo(() => {
-    return [...transactions]
+    return [...activeTransactions]
       .filter(tx => {
         if (channelFilter !== 'ALL' && tx.channel !== channelFilter) return false;
         const score = tx.risk_score || 0;
@@ -258,7 +407,7 @@ const Feed = () => {
       })
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, 150);
-  }, [transactions, channelFilter, riskFilter, searchQuery]);
+  }, [activeTransactions, channelFilter, riskFilter, searchQuery]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -282,7 +431,7 @@ const Feed = () => {
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden font-sans">
 
-      {/* ══════ 1. TOP HEADER / KPI BAR (EXACT FRIEND'S DESIGN) ══════ */}
+      {/* ══════ 1. TOP HEADER / KPI BAR (WITH TX RATE SELECTOR) ══════ */}
       <header className="px-8 py-5 border-b border-border/80 bg-card/60 backdrop-blur-md shrink-0">
         <div className="max-w-[1720px] w-full mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -290,35 +439,91 @@ const Feed = () => {
               <h1 className="text-xl font-bold tracking-tight text-slate-100 font-sans">
                 Live Transaction Stream
               </h1>
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                STREAMING
-              </span>
+              <button
+                type="button"
+                onClick={() => setIsPaused(prev => !prev)}
+                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-medium border transition-all cursor-pointer ${
+                  isPaused
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20'
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                }`}
+                title={isPaused ? "Stream is paused. Click to resume." : "Stream is active. Click to pause."}
+              >
+                {isPaused ? (
+                  <>
+                    <Play className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                    <span>PAUSED</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>STREAMING</span>
+                  </>
+                )}
+              </button>
             </div>
             <p className="text-xs text-slate-400 mt-1 font-sans">
               Real-time payment scoring and anomaly evaluation pipeline
             </p>
           </div>
 
-          {/* KPI Cards */}
-          <div className="flex items-center gap-4">
+          {/* KPI Cards & TX Rate Selector */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* TX Rate Selector & Stream Controls */}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/30 rounded-xl border border-border/60">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">TX RATE</span>
+              <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border border-border/60">
+                {[10, 20, 30, 40, 50, 100].map(rate => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => handleRateChange(rate)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
+                      selectedTxRate === rate
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                    }`}
+                  >
+                    {rate}
+                  </button>
+                ))}
+              </div>
+              <div className="h-4 w-px bg-border/60" />
+              <button
+                type="button"
+                onClick={() => setIsPaused(prev => !prev)}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 transition-all border ${
+                  isPaused
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                    : 'bg-muted/40 text-slate-300 border-border/60 hover:text-white hover:bg-slate-800/60'
+                }`}
+                title={isPaused ? "Resume transaction streaming" : "Pause transaction streaming"}
+              >
+                {isPaused ? <Play className="w-2.5 h-2.5 fill-amber-400 text-amber-400" /> : <Pause className="w-2.5 h-2.5 fill-slate-300 text-slate-300" />}
+                <span>{isPaused ? 'RESUME' : 'PAUSE'}</span>
+              </button>
+            </div>
+
+            {/* Throughput Card */}
             <div className="px-4 py-2 bg-muted/30 rounded-xl border border-border/60 min-w-[130px]">
               <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">Throughput</span>
               <span className="text-lg font-mono font-bold text-slate-100">
-                {totalTransactions} <span className="text-xs text-slate-500 font-sans font-normal">txs</span>
+                {selectedTxRate} <span className="text-xs text-slate-400 font-sans font-normal">tx/min</span>
               </span>
             </div>
 
+            {/* Velocity Card */}
             <div className="px-4 py-2 bg-muted/30 rounded-xl border border-border/60 min-w-[140px]">
               <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block flex items-center gap-1">
                 <Zap className="w-3 h-3 text-sky-400 fill-sky-400/20" />
                 Velocity
               </span>
               <span className="text-lg font-mono font-bold text-sky-400">
-                {txPerMin} <span className="text-xs text-slate-400 font-sans font-normal">tx/min</span>
+                {calculatedVelocity} <span className="text-xs text-slate-400 font-sans font-normal">tx/min</span>
               </span>
             </div>
 
+            {/* At Risk Flagged Card */}
             <div className="px-4 py-2 bg-muted/30 rounded-xl border border-border/60 min-w-[160px]">
               <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3 text-rose-400" />
