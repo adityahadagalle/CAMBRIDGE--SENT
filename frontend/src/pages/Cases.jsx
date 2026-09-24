@@ -4,6 +4,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import RiskBadge from '../components/RiskBadge';
 import InvestigationSidebar from '../components/InvestigationSidebar';
 import { getRole } from '../roleStore';
+import { usePresentationMode } from '../hooks/usePresentationMode';
 import { Briefcase, Download, Filter, Network, Zap, UserCheck } from 'lucide-react';
 
 const FORMATTED_STATUS_MAP = {
@@ -202,6 +203,8 @@ const Cases = () => {
   const [actionedSubFilter, setActionedSubFilter] = useState('ALL_ACTIONED');
   const [sidebarState, setSidebarState] = useState({ isOpen: false, case: null, tx: null, actions: [] });
   const role = getRole();
+  const { evaluationMode } = usePresentationMode();
+  const isEval1 = evaluationMode === 'evaluation1';
 
   // Final primary filters: ALL, NEW, ACTIONED, CLOSED (HIGH RISK removed)
   const QUEUE_FILTERS = ['ALL', 'NEW', 'ACTIONED', 'CLOSED'];
@@ -411,40 +414,42 @@ const Cases = () => {
                 </button>
               </div>
 
-              {/* AUTOMATIC ACTIONS */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider px-2.5 py-1 rounded bg-sky-950/70 border border-sky-800/60 flex items-center gap-1 shrink-0">
-                  <Zap className="w-3 h-3 text-sky-400" />
-                  AUTOMATIC ACTIONS ({actionedBreakdown.totalAutoCases})
-                </span>
-                <button
-                  onClick={() => setActionedSubFilter('ALL_AUTO')}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${actionedSubFilter === 'ALL_AUTO'
-                      ? 'bg-sky-600 text-white font-bold shadow-sm'
-                      : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700/60'
-                    }`}
-                >
-                  All Automatic ({actionedBreakdown.totalAutoCases})
-                </button>
-                {Object.entries(actionedBreakdown.autoCounts).map(([code, count]) => (
+              {/* AUTOMATIC ACTIONS (Suppressed during Evaluation 1 presentation) */}
+              {!isEval1 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider px-2.5 py-1 rounded bg-sky-950/70 border border-sky-800/60 flex items-center gap-1 shrink-0">
+                    <Zap className="w-3 h-3 text-sky-400" />
+                    AUTOMATIC ACTIONS ({actionedBreakdown.totalAutoCases})
+                  </span>
                   <button
-                    key={`auto_${code}`}
-                    onClick={() => setActionedSubFilter(`AUTO_${code}`)}
-                    className={`px-2.5 py-1 rounded text-xs font-medium transition-all flex items-center gap-1.5 ${actionedSubFilter === `AUTO_${code}`
+                    onClick={() => setActionedSubFilter('ALL_AUTO')}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${actionedSubFilter === 'ALL_AUTO'
                         ? 'bg-sky-600 text-white font-bold shadow-sm'
-                        : 'bg-slate-800/50 text-slate-300 border border-slate-700/60 hover:bg-slate-700'
+                        : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700/60'
                       }`}
                   >
-                    <span>{ACTION_LABELS[code] || formatStatusLabel(code)}</span>
-                    <span className="px-1.5 py-0.2 rounded-full bg-slate-900 text-sky-300 text-[10px] font-bold">
-                      {count}
-                    </span>
+                    All Automatic ({actionedBreakdown.totalAutoCases})
                   </button>
-                ))}
-              </div>
+                  {Object.entries(actionedBreakdown.autoCounts).map(([code, count]) => (
+                    <button
+                      key={`auto_${code}`}
+                      onClick={() => setActionedSubFilter(`AUTO_${code}`)}
+                      className={`px-2.5 py-1 rounded text-xs font-medium transition-all flex items-center gap-1.5 ${actionedSubFilter === `AUTO_${code}`
+                          ? 'bg-sky-600 text-white font-bold shadow-sm'
+                          : 'bg-slate-800/50 text-slate-300 border border-slate-700/60 hover:bg-slate-700'
+                        }`}
+                    >
+                      <span>{ACTION_LABELS[code] || formatStatusLabel(code)}</span>
+                      <span className="px-1.5 py-0.2 rounded-full bg-slate-900 text-sky-300 text-[10px] font-bold">
+                        {count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* MANUAL ACTIONS */}
-              <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-border/40">
+              <div className={`flex items-center gap-2 flex-wrap ${!isEval1 ? 'pt-2 border-t border-border/40' : ''}`}>
                 <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider px-2.5 py-1 rounded bg-purple-950/70 border border-purple-800/60 flex items-center gap-1 shrink-0">
                   <UserCheck className="w-3 h-3 text-purple-400" />
                   MANUAL ACTIONS ({actionedBreakdown.totalManualCases})

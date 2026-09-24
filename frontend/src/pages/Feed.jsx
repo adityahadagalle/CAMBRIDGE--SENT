@@ -6,6 +6,7 @@ import InvestigationSidebar from '../components/InvestigationSidebar';
 import AutomationAuditDrawer from '../components/AutomationAuditDrawer';
 import { getRole } from '../roleStore';
 import { maskAccount } from '../utils/maskAccount';
+import { usePresentationMode } from '../hooks/usePresentationMode';
 import {
   Activity, Zap, AlertTriangle, ArrowRight,
   Search, Radio, Lock, X, CheckCircle2,
@@ -15,6 +16,8 @@ import {
 const Feed = () => {
   const navigate = useNavigate();
   const { transactions, cases, actions } = useWebSocket();
+  const { evaluationMode } = usePresentationMode();
+  const isEval1 = evaluationMode === 'evaluation1';
   const [sidebarState, setSidebarState] = useState({ isOpen: false, tx: null, case: null });
   const [selectedAuditTx, setSelectedAuditTx] = useState(null);
   const [newTxIds, setNewTxIds] = useState(new Set());
@@ -401,7 +404,7 @@ const Feed = () => {
           {filteredTransactions.length > 0 ? (
             <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xl">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[1450px]">
+                <table className={`w-full text-left border-collapse ${isEval1 ? 'min-w-[1100px]' : 'min-w-[1450px]'}`}>
                   <thead>
                     <tr className="bg-muted/60 text-[10px] uppercase tracking-wider font-semibold text-slate-400 border-b border-border/80 select-none">
                       <th className="py-3 px-4 whitespace-nowrap min-w-[140px]">Tx ID</th>
@@ -410,8 +413,12 @@ const Feed = () => {
                       <th className="py-3 px-4 whitespace-nowrap min-w-[210px]">Sender → Receiver</th>
                       <th className="py-3 px-4 text-right whitespace-nowrap min-w-[110px]">Amount</th>
                       <th className="py-3 px-4 text-center whitespace-nowrap min-w-[130px]">Risk Score</th>
-                      <th className="py-3 px-4 text-center whitespace-nowrap min-w-[140px]">Policy Action</th>
-                      <th className="py-3 px-4 text-center whitespace-nowrap min-w-[200px]">Execution Status / Controls</th>
+                      {!isEval1 && (
+                        <>
+                          <th className="py-3 px-4 text-center whitespace-nowrap min-w-[140px]">Policy Action</th>
+                          <th className="py-3 px-4 text-center whitespace-nowrap min-w-[200px]">Execution Status / Controls</th>
+                        </>
+                      )}
                       <th className="py-3 px-4 text-center whitespace-nowrap min-w-[110px]">Account</th>
                       <th className="py-3 px-4 text-left whitespace-nowrap min-w-[300px]">Anomaly Indicator</th>
                     </tr>
@@ -501,89 +508,93 @@ const Feed = () => {
                             <RiskBadge score={tx.risk_score} />
                           </td>
 
-                          {/* Policy Action */}
-                          <td className="py-3.5 px-4 text-center">
-                            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-200 px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">
-                              {actionText}
-                            </span>
-                          </td>
+                          {!isEval1 && (
+                            <>
+                              {/* Policy Action */}
+                              <td className="py-3.5 px-4 text-center">
+                                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-200 px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">
+                                  {actionText}
+                                </span>
+                              </td>
 
-                          {/* Execution Status / Controls */}
-                          <td className="py-3.5 px-4 text-center">
-                            {isFreezeAction && !isFrozen ? (
-                              <div className="flex flex-col items-center gap-1">
-                                <span className="text-[9px] font-mono font-bold text-amber-400 uppercase tracking-wider">
-                                  ACTION REQUIRED
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleOpenFreezeModal(e, tx)}
-                                  disabled={isFreezing}
-                                  title="Operator approval required — account will be frozen."
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono font-bold bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white shadow-md shadow-rose-950/60 transition-all border border-rose-400/30 hover:border-rose-400/60 disabled:opacity-50 disabled:cursor-not-allowed select-none"
-                                >
-                                  <Lock className="w-3.5 h-3.5" />
-                                  <span>{isFreezing ? 'FREEZING...' : 'Freeze'}</span>
-                                </button>
-                              </div>
-                            ) : rec.execution_status === 'SUCCESS' || rec.execution_status === 'EXECUTED' ? (
-                              <div className="flex flex-col items-center justify-center gap-0.5">
-                                <span
-                                  className={`text-[10px] font-mono font-extrabold px-2.5 py-0.5 rounded border uppercase ${
-                                    rec.actor_type === 'HUMAN_OPERATOR' || isHumanOperator
-                                      ? 'bg-purple-950/90 text-purple-300 border-purple-600/80'
-                                      : 'bg-emerald-950/90 text-emerald-300 border-emerald-600/80'
-                                  }`}
-                                >
-                                  ACTION TAKEN
-                                </span>
-                                <span className="text-[9px] font-mono text-slate-400 font-medium">
-                                  {rec.actor_type === 'HUMAN_OPERATOR' || isHumanOperator ? 'Human Operator' : '⚡ Automation Engine'}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-center gap-1">
-                                <span className="text-[9px] font-mono font-bold text-amber-400 uppercase tracking-wider">
-                                  ACTION REQUIRED
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleManualAction(e, tx, actionCode)}
-                                  disabled={executingActionTxIds.has(tx.tx_id)}
-                                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono font-bold text-white shadow-md transition-all select-none ${
-                                    actionCode === 'BLOCK' ? 'bg-rose-700 hover:bg-rose-600' :
-                                    actionCode === 'REJECT_TRANSACTION' ? 'bg-rose-800 hover:bg-rose-700' :
-                                    actionCode === 'FILE_STR' ? 'bg-purple-600 hover:bg-purple-500' :
-                                    actionCode === 'CLOSE_ACCOUNT' ? 'bg-rose-900 hover:bg-rose-800' :
-                                    actionCode === 'ESCALATE_ANALYST_REVIEW' ? 'bg-amber-600 hover:bg-amber-500' :
-                                    actionCode === 'ENHANCED_MONITORING' ? 'bg-sky-700 hover:bg-sky-600' :
-                                    actionCode === 'MARK_FALSE_POSITIVE' ? 'bg-slate-700 hover:bg-slate-600' :
-                                    'bg-sky-600 hover:bg-sky-500'
-                                  }`}
-                                >
-                                  <span>
-                                    {executingActionTxIds.has(tx.tx_id)
-                                      ? 'EXECUTING...'
-                                      : actionCode === 'ESCALATE_ANALYST_REVIEW'
-                                      ? 'Escalate'
-                                      : actionCode === 'ENHANCED_MONITORING'
-                                      ? 'Enhanced Monitoring'
-                                      : actionCode === 'MARK_FALSE_POSITIVE'
-                                      ? 'Mark False Positive'
-                                      : actionCode === 'REJECT_TRANSACTION'
-                                      ? 'Reject'
-                                      : actionCode === 'CLOSE_ACCOUNT'
-                                      ? 'Close Account'
-                                      : actionCode === 'BLOCK'
-                                      ? 'Block'
-                                      : actionCode === 'FILE_STR'
-                                      ? 'File STR'
-                                      : 'Monitor'}
-                                  </span>
-                                </button>
-                              </div>
-                            )}
-                          </td>
+                              {/* Execution Status / Controls */}
+                              <td className="py-3.5 px-4 text-center">
+                                {isFreezeAction && !isFrozen ? (
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span className="text-[9px] font-mono font-bold text-amber-400 uppercase tracking-wider">
+                                      ACTION REQUIRED
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleOpenFreezeModal(e, tx)}
+                                      disabled={isFreezing}
+                                      title="Operator approval required — account will be frozen."
+                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono font-bold bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white shadow-md shadow-rose-950/60 transition-all border border-rose-400/30 hover:border-rose-400/60 disabled:opacity-50 disabled:cursor-not-allowed select-none"
+                                    >
+                                      <Lock className="w-3.5 h-3.5" />
+                                      <span>{isFreezing ? 'FREEZING...' : 'Freeze'}</span>
+                                    </button>
+                                  </div>
+                                ) : rec.execution_status === 'SUCCESS' || rec.execution_status === 'EXECUTED' ? (
+                                  <div className="flex flex-col items-center justify-center gap-0.5">
+                                    <span
+                                      className={`text-[10px] font-mono font-extrabold px-2.5 py-0.5 rounded border uppercase ${
+                                        rec.actor_type === 'HUMAN_OPERATOR' || isHumanOperator
+                                          ? 'bg-purple-950/90 text-purple-300 border-purple-600/80'
+                                          : 'bg-emerald-950/90 text-emerald-300 border-emerald-600/80'
+                                      }`}
+                                    >
+                                      ACTION TAKEN
+                                    </span>
+                                    <span className="text-[9px] font-mono text-slate-400 font-medium">
+                                      {rec.actor_type === 'HUMAN_OPERATOR' || isHumanOperator ? 'Human Operator' : '⚡ Automation Engine'}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span className="text-[9px] font-mono font-bold text-amber-400 uppercase tracking-wider">
+                                      ACTION REQUIRED
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleManualAction(e, tx, actionCode)}
+                                      disabled={executingActionTxIds.has(tx.tx_id)}
+                                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-mono font-bold text-white shadow-md transition-all select-none ${
+                                        actionCode === 'BLOCK' ? 'bg-rose-700 hover:bg-rose-600' :
+                                        actionCode === 'REJECT_TRANSACTION' ? 'bg-rose-800 hover:bg-rose-700' :
+                                        actionCode === 'FILE_STR' ? 'bg-purple-600 hover:bg-purple-500' :
+                                        actionCode === 'CLOSE_ACCOUNT' ? 'bg-rose-900 hover:bg-rose-800' :
+                                        actionCode === 'ESCALATE_ANALYST_REVIEW' ? 'bg-amber-600 hover:bg-amber-500' :
+                                        actionCode === 'ENHANCED_MONITORING' ? 'bg-sky-700 hover:bg-sky-600' :
+                                        actionCode === 'MARK_FALSE_POSITIVE' ? 'bg-slate-700 hover:bg-slate-600' :
+                                        'bg-sky-600 hover:bg-sky-500'
+                                      }`}
+                                    >
+                                      <span>
+                                        {executingActionTxIds.has(tx.tx_id)
+                                          ? 'EXECUTING...'
+                                          : actionCode === 'ESCALATE_ANALYST_REVIEW'
+                                          ? 'Escalate'
+                                          : actionCode === 'ENHANCED_MONITORING'
+                                          ? 'Enhanced Monitoring'
+                                          : actionCode === 'MARK_FALSE_POSITIVE'
+                                          ? 'Mark False Positive'
+                                          : actionCode === 'REJECT_TRANSACTION'
+                                          ? 'Reject'
+                                          : actionCode === 'CLOSE_ACCOUNT'
+                                          ? 'Close Account'
+                                          : actionCode === 'BLOCK'
+                                          ? 'Block'
+                                          : actionCode === 'FILE_STR'
+                                          ? 'File STR'
+                                          : 'Monitor'}
+                                      </span>
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </>
+                          )}
 
                           {/* Account */}
                           <td className="py-3.5 px-4 text-center">

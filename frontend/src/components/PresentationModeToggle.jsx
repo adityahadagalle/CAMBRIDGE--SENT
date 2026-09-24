@@ -1,63 +1,80 @@
 import React from 'react';
-import { Bell, BellOff, Presentation } from 'lucide-react';
+import { BellOff, Presentation, Check } from 'lucide-react';
 import { usePresentationMode } from '../hooks/usePresentationMode';
 
 /**
- * Compact system control toggle for Presentation Mode.
+ * Control toggle for Presentation Mode and Evaluation Modes.
  * 
- * States:
- * - OFF → Alerts visible (Default alerting)
- * - ON  → Popups suppressed (Disruptive pop-up notifications muted)
+ * Supports:
+ * - Evaluation 1: Operational Investigation (Real-Time Feed, Analytics, Cases)
+ * - Evaluation 2: ML & Benchmark (ML Intelligence, Benchmark Lab)
+ * - Standard / Off: Full platform controls
  */
 const PresentationModeToggle = () => {
-  const { isPresentationMode, togglePresentationMode } = usePresentationMode();
+  const { isPresentationMode, evaluationMode, setEvaluationMode } = usePresentationMode();
 
   return (
-    <div className="space-y-1.5 font-sans">
-      <button
-        type="button"
-        id="presentation-mode-toggle"
-        onClick={togglePresentationMode}
-        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-mono text-xs font-bold transition-all border shadow-sm select-none focus:outline-none focus:ring-2 focus:ring-amber-500/40 ${
-          isPresentationMode
-            ? 'bg-amber-950/70 border-amber-500/80 text-amber-300 shadow-amber-950/50 hover:bg-amber-900/80'
-            : 'bg-slate-900/90 border-slate-700/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-        }`}
-        title={isPresentationMode ? 'Disable Presentation Mode (Show popups)' : 'Enable Presentation Mode (Suppress popups)'}
-      >
-        <div className="flex items-center gap-2">
-          {isPresentationMode ? (
-            <BellOff className="w-4 h-4 text-amber-400 shrink-0" />
-          ) : (
-            <Presentation className="w-4 h-4 text-slate-400 shrink-0" />
-          )}
-          <span className="tracking-tight">Presentation Mode</span>
-        </div>
-
-        <span
-          className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-mono tracking-wider font-semibold ${
-            isPresentationMode
-              ? 'bg-amber-500/25 text-amber-300 border border-amber-500/40'
-              : 'bg-slate-800 text-slate-400 border border-slate-700'
-          }`}
-        >
-          {isPresentationMode ? 'ON' : 'OFF'}
+    <div id="presentation-mode-toggle" className="space-y-2 font-sans select-none">
+      <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider px-1">
+        <span className="flex items-center gap-1.5">
+          <Presentation className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          Presentation Mode
         </span>
-      </button>
-
-      <div className="px-1 flex items-center justify-between text-[9px] font-mono select-none">
-        <span className={isPresentationMode ? 'text-amber-400 font-semibold' : 'text-slate-500'}>
-          {isPresentationMode ? 'Popups suppressed' : 'Alerts visible'}
+        <span className={isPresentationMode ? 'text-blue-400 font-semibold' : 'text-slate-500'}>
+          {evaluationMode === 'evaluation1' ? 'EVAL 1' : evaluationMode === 'evaluation2' ? 'EVAL 2' : 'OFF'}
         </span>
-        {isPresentationMode && (
-          <span className="flex items-center gap-1 text-amber-300/90 font-bold uppercase tracking-wider">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            QUIET UI
-          </span>
-        )}
       </div>
+
+      <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-900/90 border border-slate-700/80 rounded-xl">
+        <button
+          type="button"
+          id="toggle-eval-1"
+          onClick={() => setEvaluationMode(evaluationMode === 'evaluation1' ? null : 'evaluation1')}
+          className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[10px] font-mono font-bold transition-all ${
+            evaluationMode === 'evaluation1'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40 border border-blue-400/40'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+          }`}
+          title="Evaluation 1: Operational Investigation (Feed, Analytics, Cases)"
+        >
+          {evaluationMode === 'evaluation1' && <Check className="w-3 h-3 text-white shrink-0" />}
+          <span>Eval 1 (Ops)</span>
+        </button>
+
+        <button
+          type="button"
+          id="toggle-eval-2"
+          onClick={() => setEvaluationMode(evaluationMode === 'evaluation2' ? null : 'evaluation2')}
+          className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-[10px] font-mono font-bold transition-all ${
+            evaluationMode === 'evaluation2'
+              ? 'bg-purple-600 text-white shadow-md shadow-purple-900/40 border border-purple-400/40'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+          }`}
+          title="Evaluation 2: ML & Benchmark (ML Intelligence, Benchmark Lab)"
+        >
+          {evaluationMode === 'evaluation2' && <Check className="w-3 h-3 text-white shrink-0" />}
+          <span>Eval 2 (ML)</span>
+        </button>
+      </div>
+
+      {isPresentationMode && (
+        <div className="px-1 flex items-center justify-between text-[9px] font-mono select-none">
+          <span className="text-amber-400 font-semibold flex items-center gap-1">
+            <BellOff className="w-3 h-3" />
+            Popups Suppressed
+          </span>
+          <button
+            type="button"
+            onClick={() => setEvaluationMode(null)}
+            className="text-slate-500 hover:text-rose-400 underline font-semibold transition-colors"
+          >
+            Reset
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
 export default PresentationModeToggle;
+

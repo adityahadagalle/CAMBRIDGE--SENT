@@ -22,10 +22,12 @@ import ActionTakenToast from './components/ActionTakenToast';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './components/Login';
 import { getRole } from './roleStore';
+import { usePresentationMode } from './hooks/usePresentationMode';
 
 const App = () => {
   const { connectionStatus } = useWebSocket();
   const role = getRole();
+  const { evaluationMode } = usePresentationMode();
   const [automateMode, setAutomateMode] = React.useState(false);
 
   React.useEffect(() => {
@@ -59,6 +61,9 @@ const App = () => {
         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
     }`;
 
+  const isEval1 = evaluationMode === 'evaluation1';
+  const isEval2 = evaluationMode === 'evaluation2';
+
   return (
     <Router>
       <div className="flex h-screen w-screen bg-background text-foreground relative font-sans antialiased overflow-hidden">
@@ -66,7 +71,6 @@ const App = () => {
         <LiveAlertToast />
         <ActionTakenToast />
 
-        
         {/* Navigation Sidebar */}
         <aside className="w-64 h-full border-r border-border bg-card flex flex-col shrink-0 select-none z-20 shadow-xl overflow-hidden">
           <div className="p-5 space-y-6 flex-1 overflow-y-auto">
@@ -87,71 +91,111 @@ const App = () => {
               </div>
             </div>
 
-            {/* Role Badge & Status */}
-            <div className="space-y-3 bg-muted/40 p-3 rounded-xl border border-border/60">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Access Tier</span>
-                <span className={`text-[10px] font-mono font-semibold uppercase px-2 py-0.5 rounded border ${
-                  role === 'admin' 
-                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' 
-                    : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-                }`}>
-                  {role}
-                </span>
+            {/* Presentation Mode Status or Role Badge & Controls */}
+            {isEval1 ? (
+              <div className="p-3.5 rounded-xl bg-blue-950/40 border border-blue-500/30 font-mono space-y-1 shadow-inner">
+                <div className="text-[10px] text-blue-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                  PRESENTATION MODE
+                </div>
+                <div className="text-sm text-slate-100 font-bold">
+                  Evaluation 1
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  Operational Investigation
+                </div>
               </div>
-              <SystemStatusBar status={connectionStatus} />
-            </div>
-
-            {/* Controls Section */}
-            <div className="pt-1 space-y-2">
-              <AutomateModeToggle />
-              {automateMode ? (
-                <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-[10px] font-mono space-y-1">
-                  <div className="text-emerald-300 font-bold tracking-wide flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    AUTONOMOUS ACTIONS: ACTIVE
-                  </div>
-                  <div className="text-amber-300/90 font-medium tracking-tight">
-                    FREEZE: OPERATOR APPROVAL REQUIRED
-                  </div>
+            ) : isEval2 ? (
+              <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/30 font-mono space-y-1 shadow-inner">
+                <div className="text-[10px] text-purple-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                  PRESENTATION MODE
                 </div>
-              ) : (
-                <div className="p-2 bg-slate-900/60 border border-slate-800 rounded-lg text-[10px] font-mono text-slate-400 text-center font-bold tracking-wide">
-                  AUTONOMOUS ACTIONS: OFF
+                <div className="text-sm text-slate-100 font-bold">
+                  Evaluation 2
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  ML & Benchmark
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Role Badge & Status */}
+                <div className="space-y-3 bg-muted/40 p-3 rounded-xl border border-border/60">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Access Tier</span>
+                    <span className={`text-[10px] font-mono font-semibold uppercase px-2 py-0.5 rounded border ${
+                      role === 'admin' 
+                        ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' 
+                        : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                    }`}>
+                      {role}
+                    </span>
+                  </div>
+                  <SystemStatusBar status={connectionStatus} />
                 </div>
 
-              )}
-              <AttackModeToggle />
-              <PresentationModeToggle />
-            </div>
-
-
+                {/* Controls Section */}
+                <div className="pt-1 space-y-2">
+                  <AutomateModeToggle />
+                  {automateMode ? (
+                    <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-[10px] font-mono space-y-1">
+                      <div className="text-emerald-300 font-bold tracking-wide flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        AUTONOMOUS ACTIONS: ACTIVE
+                      </div>
+                      <div className="text-amber-300/90 font-medium tracking-tight">
+                        FREEZE: OPERATOR APPROVAL REQUIRED
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2 bg-slate-900/60 border border-slate-800 rounded-lg text-[10px] font-mono text-slate-400 text-center font-bold tracking-wide">
+                      AUTONOMOUS ACTIONS: OFF
+                    </div>
+                  )}
+                  <AttackModeToggle />
+                  <PresentationModeToggle />
+                </div>
+              </>
+            )}
 
             {/* Navigation Menu */}
             <nav className="space-y-1 pt-2">
               <div className="px-3 pb-2 text-[10px] font-medium text-slate-500 uppercase tracking-widest">
-                Monitoring Console
+                {isEval2 ? 'Intelligence & Validation' : 'Monitoring Console'}
               </div>
-              <NavLink to="/feed" className={navItemClass}>
-                <Activity className="w-4 h-4 shrink-0" />
-                <span>Real-time Feed</span>
-              </NavLink>
-              <NavLink to="/dashboard" className={navItemClass}>
-                <LayoutDashboard className="w-4 h-4 shrink-0" />
-                <span>Analytics</span>
-              </NavLink>
-              <NavLink to="/cases" className={navItemClass}>
-                <Briefcase className="w-4 h-4 shrink-0" />
-                <span>Cases</span>
-              </NavLink>
-              <NavLink to="/benchmark" className={navItemClass}>
-                <FlaskConical className="w-4 h-4 shrink-0" />
-                <span>Benchmark Lab</span>
-              </NavLink>
-              <NavLink to="/ml-intelligence" className={navItemClass}>
-                <Brain className="w-4 h-4 shrink-0" />
-                <span>ML Intelligence</span>
-              </NavLink>
+
+              {/* Evaluation 1 or Standard Navigation */}
+              {!isEval2 && (
+                <>
+                  <NavLink to="/feed" className={navItemClass}>
+                    <Activity className="w-4 h-4 shrink-0" />
+                    <span>Real-Time Feed</span>
+                  </NavLink>
+                  <NavLink to="/dashboard" className={navItemClass}>
+                    <LayoutDashboard className="w-4 h-4 shrink-0" />
+                    <span>Analytics</span>
+                  </NavLink>
+                  <NavLink to="/cases" className={navItemClass}>
+                    <Briefcase className="w-4 h-4 shrink-0" />
+                    <span>Cases</span>
+                  </NavLink>
+                </>
+              )}
+
+              {/* Evaluation 2 or Standard Navigation */}
+              {!isEval1 && (
+                <>
+                  <NavLink to="/ml-intelligence" className={navItemClass}>
+                    <Brain className="w-4 h-4 shrink-0" />
+                    <span>ML Intelligence</span>
+                  </NavLink>
+                  <NavLink to="/benchmark" className={navItemClass}>
+                    <FlaskConical className="w-4 h-4 shrink-0" />
+                    <span>Benchmark Lab</span>
+                  </NavLink>
+                </>
+              )}
             </nav>
           </div>
 
@@ -180,19 +224,45 @@ const App = () => {
         <main className="flex-1 h-full min-w-0 bg-background flex flex-col overflow-hidden relative">
           <div className="flex-1 h-full min-h-0 overflow-y-auto">
             <Routes>
-              <Route path="/" element={<Navigate to="/feed" replace />} />
-              <Route path="/feed" element={<Feed />} />
-              <Route path="/dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
-              <Route path="/cases" element={<Cases />} />
-              <Route path="/benchmark" element={<ErrorBoundary><BenchmarkLab /></ErrorBoundary>} />
-              <Route path="/ml-intelligence" element={<ErrorBoundary><MLIntelligence /></ErrorBoundary>} />
-              <Route path="/graph/:caseId" element={<ErrorBoundary><Graph /></ErrorBoundary>} />
+              <Route
+                path="/"
+                element={<Navigate to={isEval2 ? "/ml-intelligence" : "/feed"} replace />}
+              />
+              <Route
+                path="/feed"
+                element={isEval2 ? <Navigate to="/ml-intelligence" replace /> : <Feed />}
+              />
+              <Route
+                path="/dashboard"
+                element={isEval2 ? <Navigate to="/ml-intelligence" replace /> : <ErrorBoundary><Dashboard /></ErrorBoundary>}
+              />
+              <Route
+                path="/analytics"
+                element={<Navigate to={isEval2 ? "/ml-intelligence" : "/dashboard"} replace />}
+              />
+              <Route
+                path="/cases"
+                element={isEval2 ? <Navigate to="/ml-intelligence" replace /> : <Cases />}
+              />
+              <Route
+                path="/benchmark"
+                element={isEval1 ? <Navigate to="/feed" replace /> : <ErrorBoundary><BenchmarkLab /></ErrorBoundary>}
+              />
+              <Route
+                path="/ml-intelligence"
+                element={isEval1 ? <Navigate to="/feed" replace /> : <ErrorBoundary><MLIntelligence /></ErrorBoundary>}
+              />
+              <Route
+                path="/graph/:caseId"
+                element={isEval2 ? <Navigate to="/ml-intelligence" replace /> : <ErrorBoundary><Graph /></ErrorBoundary>}
+              />
             </Routes>
           </div>
         </main>
       </div>
     </Router>
   );
+
 };
 
 export default App;
