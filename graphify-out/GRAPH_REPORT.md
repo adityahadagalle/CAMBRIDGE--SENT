@@ -1,12 +1,12 @@
-# Graph Report - .  (2026-09-24)
+# Graph Report - sentinel  (2026-09-24)
 
 ## Corpus Check
-- 193 files · ~193,258 words
+- 357 files · ~378,527 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1817 nodes · 4126 edges · 120 communities detected
-- Extraction: 48% EXTRACTED · 52% INFERRED · 0% AMBIGUOUS · INFERRED: 2142 edges (avg confidence: 0.61)
+- 2083 nodes · 5330 edges · 89 communities detected
+- Extraction: 50% EXTRACTED · 50% INFERRED · 0% AMBIGUOUS · INFERRED: 2677 edges (avg confidence: 0.59)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -51,7 +51,6 @@
 - [[_COMMUNITY_Community 38|Community 38]]
 - [[_COMMUNITY_Community 39|Community 39]]
 - [[_COMMUNITY_Community 40|Community 40]]
-- [[_COMMUNITY_Community 41|Community 41]]
 - [[_COMMUNITY_Community 42|Community 42]]
 - [[_COMMUNITY_Community 43|Community 43]]
 - [[_COMMUNITY_Community 44|Community 44]]
@@ -72,24 +71,6 @@
 - [[_COMMUNITY_Community 59|Community 59]]
 - [[_COMMUNITY_Community 60|Community 60]]
 - [[_COMMUNITY_Community 61|Community 61]]
-- [[_COMMUNITY_Community 62|Community 62]]
-- [[_COMMUNITY_Community 63|Community 63]]
-- [[_COMMUNITY_Community 64|Community 64]]
-- [[_COMMUNITY_Community 65|Community 65]]
-- [[_COMMUNITY_Community 66|Community 66]]
-- [[_COMMUNITY_Community 67|Community 67]]
-- [[_COMMUNITY_Community 68|Community 68]]
-- [[_COMMUNITY_Community 69|Community 69]]
-- [[_COMMUNITY_Community 70|Community 70]]
-- [[_COMMUNITY_Community 71|Community 71]]
-- [[_COMMUNITY_Community 72|Community 72]]
-- [[_COMMUNITY_Community 73|Community 73]]
-- [[_COMMUNITY_Community 74|Community 74]]
-- [[_COMMUNITY_Community 75|Community 75]]
-- [[_COMMUNITY_Community 76|Community 76]]
-- [[_COMMUNITY_Community 77|Community 77]]
-- [[_COMMUNITY_Community 78|Community 78]]
-- [[_COMMUNITY_Community 79|Community 79]]
 - [[_COMMUNITY_Community 80|Community 80]]
 - [[_COMMUNITY_Community 81|Community 81]]
 - [[_COMMUNITY_Community 82|Community 82]]
@@ -118,364 +99,276 @@
 - [[_COMMUNITY_Community 105|Community 105]]
 - [[_COMMUNITY_Community 106|Community 106]]
 - [[_COMMUNITY_Community 107|Community 107]]
-- [[_COMMUNITY_Community 108|Community 108]]
-- [[_COMMUNITY_Community 109|Community 109]]
-- [[_COMMUNITY_Community 110|Community 110]]
-- [[_COMMUNITY_Community 111|Community 111]]
-- [[_COMMUNITY_Community 112|Community 112]]
-- [[_COMMUNITY_Community 113|Community 113]]
-- [[_COMMUNITY_Community 114|Community 114]]
-- [[_COMMUNITY_Community 115|Community 115]]
-- [[_COMMUNITY_Community 116|Community 116]]
-- [[_COMMUNITY_Community 117|Community 117]]
-- [[_COMMUNITY_Community 118|Community 118]]
-- [[_COMMUNITY_Community 119|Community 119]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `InMemoryCaseRepository` - 316 edges
-2. `PostgreSQLCaseRepository` - 198 edges
-3. `CaseLifecycleService` - 139 edges
-4. `AbstractCaseRepository` - 126 edges
-5. `Case` - 120 edges
-6. `Transaction` - 120 edges
-7. `Account` - 118 edges
-8. `run_pipeline()` - 68 edges
-9. `OllamaService` - 63 edges
-10. `BenchmarkService` - 59 edges
+1. `InMemoryCaseRepository` - 377 edges
+2. `PostgreSQLCaseRepository` - 275 edges
+3. `Case` - 199 edges
+4. `Transaction` - 199 edges
+5. `Account` - 196 edges
+6. `CaseLifecycleService` - 181 edges
+7. `AbstractCaseRepository` - 177 edges
+8. `AuditEvent` - 79 edges
+9. `Disposition` - 69 edges
+10. `run_pipeline()` - 69 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `get_case_graph()` --calls--> `build_investigation_graph()`  [INFERRED]
-  backend\main.py → backend\app\engines\graph_engine.py
-- `get_transaction_graph()` --calls--> `build_investigation_graph()`  [INFERRED]
-  backend\main.py → backend\app\engines\graph_engine.py
-- `In-Memory Case Repository Implementation for SENTINEL (Phase 7).  Satisfies Ab` --uses--> `AbstractCaseRepository`  [INFERRED]
-  backend\app\repositories\in_memory.py → backend\app\repositories\base.py
-- `In-Memory persistence implementation satisfying the AbstractCaseRepository contr` --uses--> `AbstractCaseRepository`  [INFERRED]
-  backend\app\repositories\in_memory.py → backend\app\repositories\base.py
-- `Simulates pessimistic FOR UPDATE lock by checking case existence.` --uses--> `AbstractCaseRepository`  [INFERRED]
-  backend\app\repositories\in_memory.py → backend\app\repositories\base.py
+- `AbstractCaseRepository` --uses--> `Returns list of supported benchmark feature profiles and their descriptions.`  [INFERRED]
+  sentinel-fincrime-platform\sentinel\backend\app\repositories\base.py → backend\app\routes\benchmark.py
+- `AbstractCaseRepository` --uses--> `Phase 1: Generates a batch of test transactions strictly as UNEVALUATED INPUTS.`  [INFERRED]
+  sentinel-fincrime-platform\sentinel\backend\app\repositories\base.py → backend\app\routes\benchmark.py
+- `AbstractCaseRepository` --uses--> `Phase 2: User explicitly triggers SENTINEL evaluation.     Routes every transac`  [INFERRED]
+  sentinel-fincrime-platform\sentinel\backend\app\repositories\base.py → backend\app\routes\benchmark.py
+- `AbstractCaseRepository` --uses--> `Evaluates ONLY a single transaction within a benchmark run.     Enforces transa`  [INFERRED]
+  sentinel-fincrime-platform\sentinel\backend\app\repositories\base.py → backend\app\routes\benchmark.py
+- `AbstractCaseRepository` --uses--> `Adds a custom manual test transaction into an existing unevaluated batch.`  [INFERRED]
+  sentinel-fincrime-platform\sentinel\backend\app\repositories\base.py → backend\app\routes\benchmark.py
 
 ## Communities
 
 ### Community 0 - "Community 0"
-Cohesion: 0.02
-Nodes (92): AbstractCaseRepository, get_case_audit_history(), get_case_disposition_history(), _now_iso(), Case Lifecycle & Audit Persistence Agent for SENTINEL (Phase 6 / Phase 7 Step 3), Returns True if current_state -> target_state is an allowed, valid transition., Delegates history retrieval directly to the repository., Synchronous entrypoint wrapper for backward compatibility across Phase 1–6 tests (+84 more)
+Cohesion: 0.03
+Nodes (216): AbstractCaseRepository, Account, Account ORM Model for SENTINEL (Phase 7)., AuditEvent, AuditEvent ORM Model for SENTINEL (Phase 7)., Base, AbstractCaseRepository, Abstract contract for case lifecycle, disposition, and audit persistence operati (+208 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.02
-Nodes (116): generate_analyst_decision_support(), generate_case_analyst_decision_support(), generate_transaction_analyst_decision_support(), _now_iso(), Analyst Decision Support Agent for SENTINEL (Phase 5).  Responsibility: - Con, Core entrypoint for Phase 5 Analyst Decision Support Agent.     Consumes Phase, Wrapper to collect Phase 1-4 reports and generate Phase 5 Analyst Decision Suppo, Wrapper to collect Phase 1-4 reports and generate Phase 5 Analyst Decision Suppo (+108 more)
+Cohesion: 0.01
+Nodes (111): generate_analyst_decision_support(), generate_case_analyst_decision_support(), generate_transaction_analyst_decision_support(), _now_iso(), Analyst Decision Support Agent for SENTINEL (Phase 5).  Responsibility: - Con, Core entrypoint for Phase 5 Analyst Decision Support Agent.     Consumes Phase, Wrapper to collect Phase 1-4 reports and generate Phase 5 Analyst Decision Suppo, Wrapper to collect Phase 1-4 reports and generate Phase 5 Analyst Decision Suppo (+103 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.05
-Nodes (134): Account, Account ORM Model for SENTINEL (Phase 7)., AuditEvent, AuditEvent ORM Model for SENTINEL (Phase 7)., Base, AbstractCaseRepository, Abstract contract for case lifecycle, disposition, and audit persistence operati, Case (+126 more)
+Cohesion: 0.02
+Nodes (107): evaluate_autonomous_policy(), SENTINEL Phase 16 — Deterministic Autonomous Policy Engine.  Enforces non-nego, Evaluates transaction risk signals and produces a deterministic policy decision., ActionRequest, alert_action(), _baseline_loop(), block_action(), _build_investigation_read_model() (+99 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.04
-Nodes (75): AccountNode, ActionLog, BaseModel, BenchmarkStartRequest, CustomTransactionRequest, analyze_case(), AnalyzeRequest, _build_investigation_context() (+67 more)
+Cohesion: 0.03
+Nodes (61): InvestigationOrchestrator, _now_iso(), Investigation Orchestrator Service for SENTINEL (Phase 9 Reliability Hardening)., Asynchronous End-to-End Investigation Pipeline Orchestrator with PostgreSQL Reli, Emits real-time status event to connected WebSocket clients if manager is availa, Executes a function with bounded retries for transient errors., Executes the 5-stage automated investigation lifecycle for a given case_id., _account_to_dict() (+53 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.03
-Nodes (77): evaluate_autonomous_policy(), SENTINEL Phase 16 — Deterministic Autonomous Policy Engine.  Enforces non-nego, Evaluates transaction risk signals and produces a deterministic policy decision., get_database_url(), Database Environment Configuration for SENTINEL (Phase 7)., Returns the database connection URL from environment variable DATABASE_URL,, Run migrations in 'offline' mode., Run migrations in 'online' mode using AsyncEngine. (+69 more)
+Cohesion: 0.04
+Nodes (81): BaseModel, analyze_case(), AnalyzeRequest, _build_investigation_context(), challenge_finding(), ChallengeRequest, _extract_finding_from_stage_report(), HealthResponse (+73 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.03
-Nodes (63): InvestigationOrchestrator, _now_iso(), Investigation Orchestrator Service for SENTINEL (Phase 9 Reliability Hardening)., Asynchronous End-to-End Investigation Pipeline Orchestrator with PostgreSQL Reli, Emits real-time status event to connected WebSocket clients if manager is availa, Executes a function with bounded retries for transient errors., Executes the 5-stage automated investigation lifecycle for a given case_id., _build_investigation_read_model() (+55 more)
+Cohesion: 0.02
+Nodes (73): get_case_audit_history(), get_case_disposition_history(), _now_iso(), Case Lifecycle & Audit Persistence Agent for SENTINEL (Phase 6 / Phase 7 Step 3), Returns True if current_state -> target_state is an allowed, valid transition., Delegates history retrieval directly to the repository., Returns complete chronological list of disposition records for a given case., Synchronous entrypoint wrapper for backward compatibility across Phase 1–6 tests (+65 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.04
-Nodes (98): add_custom_input_to_run(), cancel_benchmark_run(), custom_evaluate_transaction(), evaluate_benchmark_run(), evaluate_single_benchmark_transaction(), build_evaluation_snapshot(), evaluate_benchmark_transaction_pure(), EvaluationInputSnapshot (+90 more)
+Nodes (102): add_custom_input_to_run(), BenchmarkStartRequest, cancel_benchmark_run(), custom_evaluate_transaction(), CustomTransactionRequest, evaluate_benchmark_run(), evaluate_single_benchmark_transaction(), build_evaluation_snapshot() (+94 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.03
-Nodes (43): process_scored_tx(), _timeline_event(), add_edge(), add_node(), build_investigation_graph(), classify_topology_archetype(), get_graph(), Calculates node flow metrics, degree counts, and topological layer depths. (+35 more)
+Nodes (49): generate_audit_explanation(), generate_case_audit_explanation(), generate_transaction_audit_explanation(), _now_iso(), Audit Explanation Agent for SENTINEL (Phase 4).  Responsibility: - Consumes P, Core entrypoint for Phase 4 Audit Explanation Agent.     Consumes Phase 1 evide, Wrapper to collect Phase 1 evidence, Phase 2 contextual report, Phase 3 regulato, Wrapper to collect Phase 1 evidence, Phase 2 contextual report, Phase 3 regulato (+41 more)
 
 ### Community 8 - "Community 8"
-Cohesion: 0.03
-Nodes (50): generate_audit_explanation(), generate_case_audit_explanation(), generate_transaction_audit_explanation(), _now_iso(), Audit Explanation Agent for SENTINEL (Phase 4).  Responsibility: - Consumes P, Core entrypoint for Phase 4 Audit Explanation Agent.     Consumes Phase 1 evide, Wrapper to collect Phase 1 evidence, Phase 2 contextual report, Phase 3 regulato, Wrapper to collect Phase 1 evidence, Phase 2 contextual report, Phase 3 regulato (+42 more)
+Cohesion: 0.04
+Nodes (35): downgrade(), Partial Unique Index for Active Investigation Runs  Revision ID: 004_active_in, upgrade(), get_database_url(), Database Environment Configuration for SENTINEL (Phase 7)., Returns the database connection URL from environment variable DATABASE_URL,, do_run_migrations(), Run migrations in 'offline' mode. (+27 more)
 
 ### Community 9 - "Community 9"
 Cohesion: 0.05
-Nodes (29): ActionLog(), App(), AttackModeToggle(), Cases(), getCaseActionDetails(), getCaseEffectiveStatus(), ClusterDetailModal(), Dashboard() (+21 more)
+Nodes (40): ActionLog(), App(), AttackModeToggle(), Cases(), formatStatusLabel(), getCaseActionDetails(), getCaseEffectiveStatus(), ClusterDetailModal() (+32 more)
 
 ### Community 10 - "Community 10"
-Cohesion: 0.06
-Nodes (19): get_async_engine(), get_async_session_factory(), SQLAlchemy Async Engine & Session Management (Phase 7 / Phase 8 Step 1 / Phase 1, Returns a singleton async SQLAlchemy engine instance bound to the active event l, Returns an async sessionmaker factory for the active engine., setUpClass(), get_session(), setUpClass() (+11 more)
+Cohesion: 0.05
+Nodes (32): assess_case_regulatory_risk(), assess_regulatory_risk(), assess_transaction_regulatory_risk(), _now_iso(), Regulatory Risk Assessment Agent for SENTINEL (Phase 3).  Responsibility: - C, Core entrypoint for Phase 3 Regulatory Risk Assessment Agent.     Consumes Phas, Wrapper to collect case evidence from Phase 1, run Phase 2 contextual investigat, Wrapper to collect transaction evidence from Phase 1, run Phase 2 contextual inv (+24 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.08
-Nodes (16): ActionTakenToast(), BenchmarkLab(), formatCurrency(), getHumanRecommendedAction(), getHumanScenarioName(), getPlainLanguageFindings(), LiveAlertToast(), handleAction() (+8 more)
+Nodes (23): ActionTakenToast(), BenchmarkLab(), formatCurrency(), getHumanRecommendedAction(), getHumanScenarioName(), getHumanSignalChips(), getPlainLanguageFindings(), LiveAlertToast() (+15 more)
 
 ### Community 12 - "Community 12"
-Cohesion: 0.07
-Nodes (2): ABC, Abstract Case Repository Interface for SENTINEL (Phase 7).
+Cohesion: 0.12
+Nodes (29): ABC, commit_transaction(), get_account(), get_active_investigation_run(), get_all_audit_events(), get_all_transactions(), get_case_by_id(), get_case_for_update() (+21 more)
 
 ### Community 13 - "Community 13"
-Cohesion: 0.1
-Nodes (10): Test 9: Critical query indexes are defined on models., Test 1: All 6 Phase 7 models are registered in Base.metadata.tables., Test 2: Each table defines the required Primary Key., Test 3: Foreign key relationships are accurately defined., Test 4: Monetary fields use NUMERIC type (not Float/Double)., Test 5: Timestamp fields use timezone-aware DateTime., Test 6: Complex investigation objects use JSON/JSONB fields., Test 7: Case status CheckConstraint is present on cases table. (+2 more)
-
-### Community 14 - "Community 14"
 Cohesion: 0.13
 Nodes (12): evaluate_response_policy(), _now_iso(), SENTINEL Phase 14 — Automated Response Policy Engine.  Evaluates scored transa, Evaluates a scored transaction and computes a deterministic response decision., Phase 14 Automated Response Orchestration & Governance Unit Tests.  Verifies:, LOW score transaction maps to MONITOR decision., MEDIUM score transaction maps to ENHANCED_MONITORING decision., HIGH score transaction maps to ESCALATE_ANALYST_REVIEW decision. (+4 more)
 
+### Community 14 - "Community 14"
+Cohesion: 0.1
+Nodes (10): Test 9: Critical query indexes are defined on models., Test 1: All 6 Phase 7 models are registered in Base.metadata.tables., Test 2: Each table defines the required Primary Key., Test 3: Foreign key relationships are accurately defined., Test 4: Monetary fields use NUMERIC type (not Float/Double)., Test 5: Timestamp fields use timezone-aware DateTime., Test 6: Complex investigation objects use JSON/JSONB fields., Test 7: Case status CheckConstraint is present on cases table. (+2 more)
+
 ### Community 15 - "Community 15"
-Cohesion: 0.19
-Nodes (4): downgrade(), Partial Unique Index for Active Investigation Runs  Revision ID: 004_active_in, upgrade(), TestPostgreSQLRealIntegration
+Cohesion: 0.21
+Nodes (18): AnalystEvidenceViewer(), AuditExplanationView(), AuditTrailCard(), ContextualView(), DecisionSupportView(), EvidenceView(), formatAmount(), formatLabel() (+10 more)
 
 ### Community 16 - "Community 16"
-Cohesion: 0.13
-Nodes (6): formatAmount(), formatLabel(), isIdLike(), isSeverity(), KeyValRow(), PrimitiveValue()
-
-### Community 17 - "Community 17"
-Cohesion: 0.4
-Nodes (15): _cap_amount(), _generate_timestamp(), _generate_tx_id(), _pick_channel(), _random_account(), _run_forked_scenario(), run_sc01_mule_chain(), run_sc02_sim_swap() (+7 more)
-
-### Community 18 - "Community 18"
-Cohesion: 0.16
-Nodes (9): compute_case_investigation_confidence(), Case B: Weak Evidence         Low completeness (20%)         Low agent agreeme, Case D: Repeated Calculation         Identical inputs must produce strictly ide, Case E: Missing/Incomplete Investigation         No evidence, no agent reports, Case C: Reference Example Scenario         Completeness: 80%         Agreement, Verify /analytics/overview returns investigation_confidence and NO kyc_verificat, Case A: Strong Evidence         High evidence completeness (100%)         High, Tests for SENTINEL's deterministic Investigation Confidence metric.          F (+1 more)
-
-### Community 19 - "Community 19"
 Cohesion: 0.16
 Nodes (10): execute_automation_policy(), _now_iso(), SENTINEL Phase 15 — Automation & Response Executor Service.  Implements backen, Executes automated response policy actions based on backend-authoritative automa, Phase 15 Automate Mode & Response Executor Test Suite.  Verifies: 1. AUTOMATE, AUTOMATE MODE OFF does NOT execute actions automatically., AUTOMATE MODE ON automatically executes permitted actions., AUTOMATE MODE ON intercepts forbidden high-impact financial actions. (+2 more)
 
+### Community 17 - "Community 17"
+Cohesion: 0.46
+Nodes (15): _cap_amount(), _generate_timestamp(), _generate_tx_id(), _pick_channel(), _random_account(), _run_forked_scenario(), run_sc01_mule_chain(), run_sc02_sim_swap() (+7 more)
+
+### Community 18 - "Community 18"
+Cohesion: 0.17
+Nodes (5): AccountNode, ensure_tz_aware(), ActionLog, ensure_tz_aware(), ensure_tz_aware()
+
+### Community 19 - "Community 19"
+Cohesion: 0.23
+Nodes (13): Unit and Integration Tests for SENTINEL Benchmark Lab API Endpoints.  Validate, Validates POST /benchmark/runs/{run_id}/transactions/{tx_id}/evaluate     evalu, Case 3 — Batch evaluation:     Clicking EVALUATE BENCHMARK processes the whole, test_cancel_benchmark_run(), test_case_3_batch_evaluation_processes_all(), test_custom_evaluate_endpoint(), test_export_csv_endpoint(), test_get_benchmark_profiles() (+5 more)
+
 ### Community 20 - "Community 20"
-Cohesion: 0.3
-Nodes (1): TestPhase8Step2AsyncEndpoints
+Cohesion: 0.28
+Nodes (2): setUpClass(), TestPhase8Step4ReportPersistence
 
 ### Community 21 - "Community 21"
-Cohesion: 0.15
-Nodes (5): Unit and Integration Tests for SENTINEL Benchmark Lab API Endpoints.  Validate, Validates POST /benchmark/runs/{run_id}/transactions/{tx_id}/evaluate     evalu, Case 3 — Batch evaluation:     Clicking EVALUATE BENCHMARK processes the whole, test_case_3_batch_evaluation_processes_all(), test_single_transaction_evaluation_route()
+Cohesion: 0.29
+Nodes (10): CustomTransactionModal(), FlowConnector(), formatCurrency(), getNormalizedWeights(), getRiskColor(), getRiskLabel(), MLIntelligence(), NeuralNetworkViz() (+2 more)
 
 ### Community 22 - "Community 22"
-Cohesion: 0.24
-Nodes (7): CustomTransactionModal(), formatCurrency(), getRiskColor(), getRiskLabel(), MLIntelligence(), stageIn(), useAnimatedCount()
+Cohesion: 0.44
+Nodes (9): AgentTooltipCard(), computeTooltipPosition(), formatAmount(), formatLabel(), getContainerAlignment(), getStageInsightData(), InvestigationWorkflowGraph(), safeFormatValue() (+1 more)
 
 ### Community 23 - "Community 23"
-Cohesion: 0.33
-Nodes (8): AgentTooltipCard(), formatAmount(), formatLabel(), getContainerAlignment(), getStageInsightData(), InvestigationWorkflowGraph(), safeFormatValue(), statusColor()
-
-### Community 24 - "Community 24"
-Cohesion: 0.25
+Cohesion: 0.27
 Nodes (6): _iso_now(), SENTINEL Pre-Seeded Demonstration Data Engine Provides authentic multi-tier for, Populates data_store with distinct, authentic forensic topologies.     Idempote, seed_initial_demonstration_data(), client(), Phase 4 End-to-End User Journey & Claim Validation Test Suite.  Verifies the c
 
+### Community 24 - "Community 24"
+Cohesion: 0.33
+Nodes (4): _amount_deviation(), score_transaction(), _time_anomaly(), TestAnalyticsRealtime
+
 ### Community 25 - "Community 25"
-Cohesion: 0.38
+Cohesion: 0.39
 Nodes (6): generate_synthetic_data(), normalize(), Normalize features for better model stability., Generate synthetic fraud data for training., Load data, normalize, train RandomForest, and save with metadata., train_model()
 
 ### Community 26 - "Community 26"
-Cohesion: 0.29
-Nodes (0): 
+Cohesion: 0.43
+Nodes (6): applyHierarchicalDagLayout(), buildRevealSequence(), drawEdgeFrame(), formatTransactionLabel(), getRoleTheme(), startRevealAnimation()
 
 ### Community 27 - "Community 27"
-Cohesion: 0.33
-Nodes (0): 
+Cohesion: 0.48
+Nodes (5): mock_bank_freeze(), mock_close_case(), mock_monitor_account(), mock_police_alert(), mock_telecom_flag()
 
 ### Community 28 - "Community 28"
-Cohesion: 0.33
-Nodes (1): IDGenerator
+Cohesion: 0.48
+Nodes (5): generate_account_id(), generate_action_id(), generate_case_id(), generate_tx_id(), IDGenerator
 
 ### Community 29 - "Community 29"
-Cohesion: 0.33
-Nodes (1): SENTINEL Full Backend Integration Test Tests every major backend feature agains
+Cohesion: 0.48
+Nodes (5): check(), _now(), SENTINEL Full Backend Integration Test Tests every major backend feature agains, section(), _tx_id()
 
 ### Community 30 - "Community 30"
-Cohesion: 0.33
+Cohesion: 0.29
 Nodes (1): ErrorBoundary
 
 ### Community 31 - "Community 31"
-Cohesion: 0.6
+Cohesion: 0.67
 Nodes (5): assignTopologicalLayers(), extractTransactionInvestigationSubgraph(), getEdgeSource(), getEdgeTarget(), simplifyGraphTopology()
 
 ### Community 32 - "Community 32"
-Cohesion: 0.5
+Cohesion: 0.38
 Nodes (3): maskAccount(), nodeActionButtonStyle(), NodeActions()
 
 ### Community 33 - "Community 33"
-Cohesion: 0.5
-Nodes (1): Initial Schema for SENTINEL Phase 7  Revision ID: 001_initial_schema Revises:
+Cohesion: 0.6
+Nodes (3): downgrade(), Initial Schema for SENTINEL Phase 7  Revision ID: 001_initial_schema Revises:, upgrade()
 
 ### Community 34 - "Community 34"
-Cohesion: 0.5
-Nodes (1): Audit Event Immutability Trigger for SENTINEL Phase 7 Step 4  Revision ID: 002
+Cohesion: 0.6
+Nodes (3): downgrade(), Audit Event Immutability Trigger for SENTINEL Phase 7 Step 4  Revision ID: 002, upgrade()
 
 ### Community 35 - "Community 35"
-Cohesion: 0.5
-Nodes (1): Investigation Runs Table for Phase 9 Reliability Hardening  Revision ID: 003_i
+Cohesion: 0.6
+Nodes (3): downgrade(), Investigation Runs Table for Phase 9 Reliability Hardening  Revision ID: 003_i, upgrade()
 
 ### Community 36 - "Community 36"
-Cohesion: 0.5
+Cohesion: 0.6
 Nodes (3): AccountStatus, ActionTypes, CaseStatus
 
 ### Community 37 - "Community 37"
-Cohesion: 0.67
+Cohesion: 0.6
 Nodes (3): generate_sample_tx(), Generates diverse transaction payloads across 4 risk tiers.     All are Hop 0 (, run_correlation_test()
 
 ### Community 38 - "Community 38"
-Cohesion: 0.83
+Cohesion: 0.8
 Nodes (3): ActionPanel(), primaryButtonStyle(), secondaryButtonStyle()
 
 ### Community 39 - "Community 39"
 Cohesion: 0.67
-Nodes (0): 
+Nodes (2): handleCustomInputAddedMock(), Program()
 
 ### Community 40 - "Community 40"
 Cohesion: 0.67
-Nodes (0): 
-
-### Community 41 - "Community 41"
-Cohesion: 0.67
-Nodes (0): 
+Nodes (2): RecoveryBar(), StatItem()
 
 ### Community 42 - "Community 42"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): make_tx()
 
 ### Community 43 - "Community 43"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): ActionButton()
 
 ### Community 44 - "Community 44"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): AutomateModeToggle()
 
 ### Community 45 - "Community 45"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): AutomationAuditDrawer()
 
 ### Community 46 - "Community 46"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): CaseCard()
 
 ### Community 47 - "Community 47"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): CenterFlow()
 
 ### Community 48 - "Community 48"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): FactorBreakdown()
 
 ### Community 49 - "Community 49"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): GoldenTimer()
 
 ### Community 50 - "Community 50"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): InvestigationSidebar()
 
 ### Community 51 - "Community 51"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): Login()
 
 ### Community 52 - "Community 52"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): RiskBadge()
 
 ### Community 53 - "Community 53"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): RiskScoreTrend()
 
 ### Community 54 - "Community 54"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): SystemStatusBar()
 
 ### Community 55 - "Community 55"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): AgentReportModal()
 
 ### Community 56 - "Community 56"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): EntityDetailModal()
 
 ### Community 57 - "Community 57"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): InvestigationBriefModal()
 
 ### Community 58 - "Community 58"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): Legend()
 
 ### Community 59 - "Community 59"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): TransactionDetailModal()
 
 ### Community 60 - "Community 60"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): TransactionInspectorModal()
 
 ### Community 61 - "Community 61"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 62 - "Community 62"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 63 - "Community 63"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 64 - "Community 64"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 65 - "Community 65"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 66 - "Community 66"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 67 - "Community 67"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 68 - "Community 68"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 69 - "Community 69"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 70 - "Community 70"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 71 - "Community 71"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 72 - "Community 72"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 73 - "Community 73"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 74 - "Community 74"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 75 - "Community 75"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 76 - "Community 76"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 77 - "Community 77"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 78 - "Community 78"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 79 - "Community 79"
-Cohesion: 1.0
-Nodes (0): 
+Cohesion: 0.67
+Nodes (1): exportAuditLog()
 
 ### Community 80 - "Community 80"
 Cohesion: 1.0
@@ -589,132 +482,56 @@ Nodes (1): Commits current database transaction boundary.
 Cohesion: 1.0
 Nodes (1): Rolls back current database transaction boundary.
 
-### Community 108 - "Community 108"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 109 - "Community 109"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 110 - "Community 110"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 111 - "Community 111"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 112 - "Community 112"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 113 - "Community 113"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 114 - "Community 114"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 115 - "Community 115"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 116 - "Community 116"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 117 - "Community 117"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 118 - "Community 118"
-Cohesion: 1.0
-Nodes (0): 
-
-### Community 119 - "Community 119"
-Cohesion: 1.0
-Nodes (0): 
-
 ## Knowledge Gaps
-- **211 isolated node(s):** `Run migrations in 'offline' mode.`, `Run migrations in 'online' mode using AsyncEngine.`, `Run migrations in 'online' mode.`, `Initial Schema for SENTINEL Phase 7  Revision ID: 001_initial_schema Revises:`, `Audit Event Immutability Trigger for SENTINEL Phase 7 Step 4  Revision ID: 002` (+206 more)
+- **192 isolated node(s):** `Run migrations in 'offline' mode.`, `Run migrations in 'online' mode using AsyncEngine.`, `Run migrations in 'online' mode.`, `Populates data_store with distinct, authentic forensic topologies.     Idempote`, `Returns the database connection URL from environment variable DATABASE_URL,` (+187 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Community 42`** (2 nodes): `check_importance.py`, `make_tx()`
+- **Thin community `Community 20`** (15 nodes): `test_investigation_report_pg.py`, `test_investigation_report_pg.py`, `setUpClass()`, `TestPhase8Step4ReportPersistence`, `.clean_db()`, `.run_with_db()`, `.seed_case_fixture()`, `.setUp()`, `.tearDown()`, `.test_step4_01_02_03_04_save_report_pg_persistence_and_orm_roundtrip()`, `.test_step4_05_06_repository_retrieval_pg_and_in_memory()`, `.test_step4_09_duplicate_report_type_upsert_semantics()`, `.test_step4_10_concurrent_report_persistence_safety()`, `.test_step4_11_invalid_case_foreign_key_rejected()`, `.test_step4_12_report_insertion_failure_rolls_back()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 43`** (2 nodes): `ActionButton()`, `ActionButton.jsx`
+- **Thin community `Community 30`** (7 nodes): `ErrorBoundary`, `.componentDidCatch()`, `.constructor()`, `.getDerivedStateFromError()`, `.render()`, `ErrorBoundary.jsx`, `ErrorBoundary.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 44`** (2 nodes): `AutomateModeToggle()`, `AutomateModeToggle.jsx`
+- **Thin community `Community 39`** (4 nodes): `test_benchmark_regression.test.js`, `test_benchmark_regression.test.js`, `handleCustomInputAddedMock()`, `Program()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 45`** (2 nodes): `AutomationAuditDrawer()`, `AutomationAuditDrawer.jsx`
+- **Thin community `Community 40`** (4 nodes): `RecoveryBar.jsx`, `RecoveryBar()`, `StatItem()`, `RecoveryBar.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 46`** (2 nodes): `CaseCard()`, `CaseCard.jsx`
+- **Thin community `Community 42`** (3 nodes): `check_importance.py`, `make_tx()`, `check_importance.py`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 47`** (2 nodes): `CenterFlow()`, `CenterFlow.jsx`
+- **Thin community `Community 43`** (3 nodes): `ActionButton()`, `ActionButton.jsx`, `ActionButton.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 48`** (2 nodes): `FactorBreakdown()`, `FactorBreakdown.jsx`
+- **Thin community `Community 44`** (3 nodes): `AutomateModeToggle()`, `AutomateModeToggle.jsx`, `AutomateModeToggle.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 49`** (2 nodes): `FindingChallengeModal()`, `FindingChallengeModal.jsx`
+- **Thin community `Community 45`** (3 nodes): `AutomationAuditDrawer()`, `AutomationAuditDrawer.jsx`, `AutomationAuditDrawer.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 50`** (2 nodes): `GoldenTimer.jsx`, `GoldenTimer()`
+- **Thin community `Community 46`** (3 nodes): `CaseCard()`, `CaseCard.jsx`, `CaseCard.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 51`** (2 nodes): `InvestigationSidebar.jsx`, `InvestigationSidebar()`
+- **Thin community `Community 47`** (3 nodes): `CenterFlow()`, `CenterFlow.jsx`, `CenterFlow.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 52`** (2 nodes): `Login.jsx`, `Login()`
+- **Thin community `Community 48`** (3 nodes): `FactorBreakdown()`, `FactorBreakdown.jsx`, `FactorBreakdown.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 53`** (2 nodes): `RiskBadge.jsx`, `RiskBadge()`
+- **Thin community `Community 49`** (3 nodes): `GoldenTimer.jsx`, `GoldenTimer()`, `GoldenTimer.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 54`** (2 nodes): `RiskScoreTrend.jsx`, `RiskScoreTrend()`
+- **Thin community `Community 50`** (3 nodes): `InvestigationSidebar.jsx`, `InvestigationSidebar()`, `InvestigationSidebar.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 55`** (2 nodes): `SystemStatusBar.jsx`, `SystemStatusBar()`
+- **Thin community `Community 51`** (3 nodes): `Login.jsx`, `Login()`, `Login.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 56`** (2 nodes): `AgentReportModal()`, `AgentReportModal.jsx`
+- **Thin community `Community 52`** (3 nodes): `RiskBadge.jsx`, `RiskBadge()`, `RiskBadge.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 57`** (2 nodes): `EntityDetailModal()`, `EntityDetailModal.jsx`
+- **Thin community `Community 53`** (3 nodes): `RiskScoreTrend.jsx`, `RiskScoreTrend()`, `RiskScoreTrend.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 58`** (2 nodes): `InvestigationBriefModal.jsx`, `InvestigationBriefModal()`
+- **Thin community `Community 54`** (3 nodes): `SystemStatusBar.jsx`, `SystemStatusBar.jsx`, `SystemStatusBar()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 59`** (2 nodes): `Legend.jsx`, `Legend()`
+- **Thin community `Community 55`** (3 nodes): `AgentReportModal()`, `AgentReportModal.jsx`, `AgentReportModal.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 60`** (2 nodes): `TransactionDetailModal.jsx`, `TransactionDetailModal()`
+- **Thin community `Community 56`** (3 nodes): `EntityDetailModal()`, `EntityDetailModal.jsx`, `EntityDetailModal.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 61`** (2 nodes): `TransactionInspectorModal.jsx`, `TransactionInspectorModal()`
+- **Thin community `Community 57`** (3 nodes): `InvestigationBriefModal.jsx`, `InvestigationBriefModal()`, `InvestigationBriefModal.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 62`** (2 nodes): `exportAuditLog()`, `exportAuditLog.js`
+- **Thin community `Community 58`** (3 nodes): `Legend.jsx`, `Legend()`, `Legend.jsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 63`** (2 nodes): `normalizeStageKey()`, `collaboration_visibility.test.js`
+- **Thin community `Community 59`** (3 nodes): `TransactionDetailModal.jsx`, `TransactionDetailModal.jsx`, `TransactionDetailModal()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 64`** (2 nodes): `buildDispositionPayload()`, `collaboration_workspace.test.js`
+- **Thin community `Community 60`** (3 nodes): `TransactionInspectorModal.jsx`, `TransactionInspectorModal.jsx`, `TransactionInspectorModal()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 65`** (1 nodes): `find_topologies.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 66`** (1 nodes): `inspect_api.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 67`** (1 nodes): `inspect_graphs.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 68`** (1 nodes): `test_case_txs.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 69`** (1 nodes): `test_chain_cases.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 70`** (1 nodes): `test_graph.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 71`** (1 nodes): `test_patterns.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 72`** (1 nodes): `verify_attack_hops.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 73`** (1 nodes): `verify_topology_tiers.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 74`** (1 nodes): `main.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 75`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 76`** (1 nodes): `config.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 77`** (1 nodes): `data_store.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 78`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 79`** (1 nodes): `__init__.py`
+- **Thin community `Community 61`** (3 nodes): `exportAuditLog()`, `exportAuditLog.js`, `exportAuditLog.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 80`** (1 nodes): `Fetch case record by case_id without pessimistic locking.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -772,45 +589,21 @@ Nodes (0):
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 107`** (1 nodes): `Rolls back current database transaction boundary.`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 108`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 109`** (1 nodes): `__init__.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 110`** (1 nodes): `test_sc01.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 111`** (1 nodes): `conftest.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 112`** (1 nodes): `test_runner.py`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 113`** (1 nodes): `tailwind.config.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 114`** (1 nodes): `vite.config.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 115`** (1 nodes): `main.jsx`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 116`** (1 nodes): `graphStyles.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 117`** (1 nodes): `index.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 118`** (1 nodes): `events.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 119`** (1 nodes): `index.js`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `InMemoryCaseRepository` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 7`, `Community 10`?**
-  _High betweenness centrality (0.247) - this node is a cross-community bridge._
-- **Why does `run_pipeline()` connect `Community 7` to `Community 1`, `Community 4`, `Community 5`, `Community 6`, `Community 8`?**
-  _High betweenness centrality (0.131) - this node is a cross-community bridge._
-- **Why does `PostgreSQLCaseRepository` connect `Community 2` to `Community 0`, `Community 4`, `Community 5`, `Community 10`, `Community 14`, `Community 15`, `Community 19`, `Community 20`?**
-  _High betweenness centrality (0.130) - this node is a cross-community bridge._
-- **Are the 285 inferred relationships involving `InMemoryCaseRepository` (e.g. with `ConnectionManager` and `EvidenceRequest`) actually correct?**
-  _`InMemoryCaseRepository` has 285 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 167 inferred relationships involving `PostgreSQLCaseRepository` (e.g. with `ConnectionManager` and `EvidenceRequest`) actually correct?**
-  _`PostgreSQLCaseRepository` has 167 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 131 inferred relationships involving `CaseLifecycleService` (e.g. with `ConnectionManager` and `EvidenceRequest`) actually correct?**
-  _`CaseLifecycleService` has 131 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 123 inferred relationships involving `AbstractCaseRepository` (e.g. with `ConnectionManager` and `EvidenceRequest`) actually correct?**
-  _`AbstractCaseRepository` has 123 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `InMemoryCaseRepository` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 8`, `Community 20`?**
+  _High betweenness centrality (0.207) - this node is a cross-community bridge._
+- **Why does `PostgreSQLCaseRepository` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`, `Community 8`, `Community 13`, `Community 16`, `Community 20`?**
+  _High betweenness centrality (0.125) - this node is a cross-community bridge._
+- **Why does `run_pipeline()` connect `Community 1` to `Community 2`, `Community 6`, `Community 7`, `Community 10`, `Community 24`?**
+  _High betweenness centrality (0.120) - this node is a cross-community bridge._
+- **Are the 345 inferred relationships involving `InMemoryCaseRepository` (e.g. with `ConnectionManager` and `EvidenceRequest`) actually correct?**
+  _`InMemoryCaseRepository` has 345 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 243 inferred relationships involving `PostgreSQLCaseRepository` (e.g. with `ConnectionManager` and `EvidenceRequest`) actually correct?**
+  _`PostgreSQLCaseRepository` has 243 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 193 inferred relationships involving `Case` (e.g. with `ConnectionManager` and `EvidenceRequest`) actually correct?**
+  _`Case` has 193 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 193 inferred relationships involving `Transaction` (e.g. with `ConnectionManager` and `EvidenceRequest`) actually correct?**
+  _`Transaction` has 193 INFERRED edges - model-reasoned connections that need verification._
