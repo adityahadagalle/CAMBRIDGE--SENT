@@ -96,3 +96,11 @@
   }
 }
 
+/* Typography Scale Elevation — Subtle 6-10% boost for enterprise readability */
+@layer utilities {
+  .text-\[8px\] { font-size: 8.75px !important; }
+  .text-\[9px\] { font-size: 9.75px !important; }
+  .text-\[10px\] { font-size: 10.75px !important; }
+  .text-\[11px\] { font-size: 11.75px !important; }
+}
+
