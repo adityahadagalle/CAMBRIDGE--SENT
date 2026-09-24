@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { useWebSocket } from './hooks/useWebSocket';
-import { Activity, LayoutDashboard, Briefcase, Shield, LogOut } from 'lucide-react';
+import { Activity, LayoutDashboard, Briefcase, Shield, LogOut, ShieldAlert } from 'lucide-react';
 
 // Pages
 import Feed from './pages/Feed';
@@ -12,7 +12,12 @@ import BenchmarkLab from './pages/BenchmarkLab';
 import MLIntelligence from './pages/MLIntelligence';
 
 import SystemStatusBar from './components/SystemStatusBar';
+import AttackModeToggle from './components/AttackModeToggle';
+import AutomateModeToggle from './components/AutomateModeToggle';
+import PresentationModeToggle from './components/PresentationModeToggle';
+import PresentationModeIndicator from './components/PresentationModeIndicator';
 import LiveAlertToast from './components/LiveAlertToast';
+
 import ActionTakenToast from './components/ActionTakenToast';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './components/Login';
@@ -21,6 +26,22 @@ import { getRole } from './roleStore';
 const App = () => {
   const { connectionStatus } = useWebSocket();
   const role = getRole();
+  const [automateMode, setAutomateMode] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch('/automation-mode')
+      .then((res) => res.json())
+      .then((data) => setAutomateMode(Boolean(data.automate_mode)))
+      .catch(() => {});
+
+    const handleModeChange = (e) => {
+      if (e.detail && e.detail.automate_mode !== undefined) {
+        setAutomateMode(Boolean(e.detail.automate_mode));
+      }
+    };
+    window.addEventListener('sentinel_automation_mode_changed', handleModeChange);
+    return () => window.removeEventListener('sentinel_automation_mode_changed', handleModeChange);
+  }, []);
 
   if (!role) {
     return <Login />;
@@ -41,9 +62,11 @@ const App = () => {
   return (
     <Router>
       <div className="flex h-screen w-screen bg-background text-foreground relative font-sans antialiased overflow-hidden">
+        <PresentationModeIndicator />
         <LiveAlertToast />
         <ActionTakenToast />
 
+        
         {/* Navigation Sidebar */}
         <aside className="w-64 h-full border-r border-border bg-card flex flex-col shrink-0 select-none z-20 shadow-xl overflow-hidden">
           <div className="p-5 space-y-6 flex-1 overflow-y-auto">
@@ -64,7 +87,7 @@ const App = () => {
               </div>
             </div>
 
-            {/* Access Tier & System Status */}
+            {/* Role Badge & Status */}
             <div className="space-y-3 bg-muted/40 p-3 rounded-xl border border-border/60">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Access Tier</span>
@@ -79,6 +102,31 @@ const App = () => {
               <SystemStatusBar status={connectionStatus} />
             </div>
 
+            {/* Controls Section */}
+            <div className="pt-1 space-y-2">
+              <AutomateModeToggle />
+              {automateMode ? (
+                <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-[10px] font-mono space-y-1">
+                  <div className="text-emerald-300 font-bold tracking-wide flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    AUTONOMOUS ACTIONS: ACTIVE
+                  </div>
+                  <div className="text-amber-300/90 font-medium tracking-tight">
+                    FREEZE: OPERATOR APPROVAL REQUIRED
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2 bg-slate-900/60 border border-slate-800 rounded-lg text-[10px] font-mono text-slate-400 text-center font-bold tracking-wide">
+                  AUTONOMOUS ACTIONS: OFF
+                </div>
+
+              )}
+              <AttackModeToggle />
+              <PresentationModeToggle />
+            </div>
+
+
+
             {/* Navigation Menu */}
             <nav className="space-y-1 pt-2">
               <div className="px-3 pb-2 text-[10px] font-medium text-slate-500 uppercase tracking-widest">
@@ -86,7 +134,7 @@ const App = () => {
               </div>
               <NavLink to="/feed" className={navItemClass}>
                 <Activity className="w-4 h-4 shrink-0" />
-                <span>Real-Time Feed</span>
+                <span>Real-time Feed</span>
               </NavLink>
               <NavLink to="/dashboard" className={navItemClass}>
                 <LayoutDashboard className="w-4 h-4 shrink-0" />
@@ -127,19 +175,16 @@ const App = () => {
               <Route path="/" element={<Navigate to="/feed" replace />} />
               <Route path="/feed" element={<Feed />} />
               <Route path="/dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
-              <Route path="/analytics" element={<Navigate to="/dashboard" replace />} />
               <Route path="/cases" element={<Cases />} />
-              <Route path="/graph/:caseId" element={<ErrorBoundary><Graph /></ErrorBoundary>} />
-              {/* Retained in codebase for future evaluation, but inaccessible from visible navigation */}
               <Route path="/benchmark" element={<ErrorBoundary><BenchmarkLab /></ErrorBoundary>} />
               <Route path="/ml-intelligence" element={<ErrorBoundary><MLIntelligence /></ErrorBoundary>} />
+              <Route path="/graph/:caseId" element={<ErrorBoundary><Graph /></ErrorBoundary>} />
             </Routes>
           </div>
         </main>
       </div>
     </Router>
   );
-
 };
 
 export default App;
