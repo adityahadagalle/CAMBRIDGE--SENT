@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { useWebSocket } from './hooks/useWebSocket';
-import { Activity, LayoutDashboard, Briefcase, Shield, LogOut, ShieldAlert } from 'lucide-react';
+import { Activity, LayoutDashboard, Briefcase, Shield, LogOut, ShieldAlert, Brain, FlaskConical } from 'lucide-react';
 
 // Pages
 import Feed from './pages/Feed';
@@ -143,6 +143,14 @@ const App = () => {
               <NavLink to="/cases" className={navItemClass}>
                 <Briefcase className="w-4 h-4 shrink-0" />
                 <span>Cases</span>
+              </NavLink>
+              <NavLink to="/ml-intelligence" className={navItemClass}>
+                <Brain className="w-4 h-4 shrink-0" />
+                <span>ML Intelligence</span>
+              </NavLink>
+              <NavLink to="/benchmark" className={navItemClass}>
+                <FlaskConical className="w-4 h-4 shrink-0" />
+                <span>Benchmark Lab</span>
               </NavLink>
             </nav>
           </div>
