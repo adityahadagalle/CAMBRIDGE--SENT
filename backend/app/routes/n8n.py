@@ -19,12 +19,16 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 
 from app.core.data_store import data_store
 from app.repositories.base import AbstractCaseRepository
 from app.repositories.dependencies import get_repository, get_verification_repository
-from app.repositories.verification_repository import AbstractVerificationRepository
+from app.repositories.verification_repository import (
+    AbstractVerificationRepository,
+    InMemoryVerificationRepository,
+)
 
 router = APIRouter(prefix="/webhooks/n8n", tags=["n8n Integration"])
 
@@ -51,6 +55,120 @@ def _verify_signature(raw_body: bytes, signature: Optional[str]) -> bool:
     return hmac.compare_digest(expected, signature)
 
 
+async def _get_background_verification_repo():
+    """
+    Resolves a fresh AbstractVerificationRepository for use from a
+    BackgroundTask -- NOT the request-scoped one injected via Depends(),
+    whose underlying DB session may already be torn down by the time the
+    background task runs (FastAPI closes yield-based dependencies once the
+    response is sent, which can race a background task). Mirrors the same
+    dev/postgres branching as get_verification_repository().
+    """
+    db_url = os.getenv("DATABASE_URL")
+    is_postgres_env = bool(db_url and db_url.startswith("postgresql"))
+    if not is_postgres_env:
+        return InMemoryVerificationRepository(data_store), None
+
+    from app.db.session import get_async_session_factory
+    from app.repositories.verification_repository import PostgreSQLVerificationRepository
+
+    session_factory = get_async_session_factory()
+    session = session_factory()
+    return PostgreSQLVerificationRepository(session), session
+
+
+async def _generate_and_persist_release_rationale_background(
+    case_id: str,
+    transaction_id: Optional[str],
+) -> None:
+    """
+    Background rationale generation, fired from the customer-YES + frozen
+    webhook path -- NOT from the analyst opening the release modal. Builds a
+    lightweight prompt input (no full investigation-context rebuild), calls
+    Ollama off the event loop, and persists the result so the modal's GET
+    endpoint can return it instantly. Errors are fully contained here: a
+    failure must never crash the webhook or leave the process in a bad
+    state, since this task runs detached from the request/response cycle.
+    """
+    if not transaction_id:
+        return
+    from app.services.ollama_service import ollama_service
+
+    repo, session = await _get_background_verification_repo()
+    try:
+        try:
+            await repo.set_rationale(case_id, transaction_id, status="PENDING")
+            await repo.commit_transaction()
+        except Exception as e:
+            print(f"[n8n routes] rationale background: could not mark PENDING: {e}")
+
+        try:
+            is_available = await run_in_threadpool(ollama_service.is_available)
+        except Exception:
+            is_available = False
+
+        if not is_available:
+            await repo.set_rationale(case_id, transaction_id, status="FAILED")
+            await repo.commit_transaction()
+            return
+
+        tx = data_store.get("transactions", {}).get(transaction_id)
+        verification_status = None
+        try:
+            records = await repo.get_for_case(case_id)
+            if records:
+                latest = records[0]
+                verification_status = {
+                    "case_id": case_id,
+                    "triggered": True,
+                    "verification_id": latest.get("verification_id"),
+                    "status": latest.get("status"),
+                    "reason_summary": latest.get("reason_summary"),
+                }
+        except Exception:
+            pass
+
+        lightweight_ctx = ollama_service._build_lightweight_rationale_input(
+            case_id=case_id,
+            transaction_id=transaction_id,
+            transaction=tx,
+            verification_status=verification_status,
+        )
+
+        try:
+            res = await run_in_threadpool(
+                ollama_service.suggest_release_rationale,
+                case_id,
+                transaction_id,
+                lightweight_ctx,
+                verification_status,
+            )
+        except Exception as e:
+            print(f"[n8n routes] rationale background: generation error: {e}")
+            await repo.set_rationale(case_id, transaction_id, status="FAILED")
+            await repo.commit_transaction()
+            return
+
+        if res.status == "ready" and res.response:
+            await repo.set_rationale(
+                case_id, transaction_id,
+                status="READY",
+                rationale=res.response.rationale,
+                model=res.model,
+            )
+        else:
+            await repo.set_rationale(case_id, transaction_id, status="FAILED")
+        await repo.commit_transaction()
+    except Exception as e:
+        print(f"[n8n routes] rationale background: unexpected error: {e}")
+    finally:
+        if session is not None:
+            try:
+                await session.close()
+            except Exception:
+                pass
+
+
 def _parse_expiry(value: Any) -> Optional[datetime]:
     if isinstance(value, datetime):
         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
@@ -65,6 +183,7 @@ def _parse_expiry(value: Any) -> Optional[datetime]:
 @router.post("/verification-response")
 async def receive_verification_response(
     request: Request,
+    background_tasks: BackgroundTasks,
     x_sentinel_signature: Optional[str] = Header(default=None),
     case_repo: AbstractCaseRepository = Depends(get_repository),
     verification_repo: AbstractVerificationRepository = Depends(get_verification_repository),
@@ -157,6 +276,18 @@ async def receive_verification_response(
     account_id = record.get("account_id")
     account = data_store.get("accounts", {}).get(account_id) if account_id else None
     account_frozen = bool(account and account.get("status") == "FROZEN")
+
+    # Fire-and-forget background rationale generation -- this is the ONLY
+    # trigger point for AI release-rationale generation. It never blocks
+    # this webhook's response, and it never calls the release endpoint or
+    # touches case/account state itself (advisory text only).
+    if decision_status == "RESPONDED_YES" and account_frozen:
+        primary_tx_id = case.get("primary_tx_id") if case else None
+        background_tasks.add_task(
+            _generate_and_persist_release_rationale_background,
+            record["case_id"],
+            primary_tx_id,
+        )
 
     if n8n_route_state.broadcast_manager:
         try:

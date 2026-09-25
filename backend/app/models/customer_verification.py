@@ -24,6 +24,7 @@ VALID_VERIFICATION_STATUSES = (
     "RESPONDED_NO",
     "EXPIRED",
     "FAILED_TO_SEND",
+    "NOT_TRIGGERED",
 )
 
 
@@ -48,6 +49,11 @@ class CustomerVerification(Base):
     response_received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     response_source_ip: Mapped[str] = mapped_column(String(64), nullable=True)
     n8n_execution_id: Mapped[str] = mapped_column(String(128), nullable=True)
+    transaction_id: Mapped[str] = mapped_column(String(64), nullable=True, index=True)
+    suggested_release_rationale: Mapped[str] = mapped_column(Text, nullable=True)
+    suggested_rationale_generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    suggested_rationale_status: Mapped[str] = mapped_column(String(32), nullable=True)
+    suggested_rationale_model: Mapped[str] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -62,7 +68,7 @@ class CustomerVerification(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('PENDING', 'RESPONDED_YES', 'RESPONDED_NO', 'EXPIRED', 'FAILED_TO_SEND')",
+            "status IN ('PENDING', 'RESPONDED_YES', 'RESPONDED_NO', 'EXPIRED', 'FAILED_TO_SEND', 'NOT_TRIGGERED')",
             name="chk_customer_verification_status",
         ),
         Index("idx_customer_verifications_case", "case_id"),

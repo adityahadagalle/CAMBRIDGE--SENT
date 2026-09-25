@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   X, ShieldAlert, Activity, ArrowRight, Lock, CheckCircle2, AlertTriangle,
   GitCommit, FileText, ChevronRight, ChevronDown, Zap, Network, Cpu, Brain,
@@ -74,6 +74,13 @@ const InvestigationSidebar = ({
   const [aiRationaleSuggested, setAiRationaleSuggested] = useState(false);
   const [aiRationaleError, setAiRationaleError] = useState(null);
   const [lastFetchedKey, setLastFetchedKey] = useState(null);
+  // Ref-based guards (in addition to state) so a fast re-render/StrictMode
+  // double-invoke can't race past the state-update boundary and fire a
+  // second concurrent fetch, and so we never clobber text the analyst has
+  // already started editing.
+  const rationaleInFlightKeyRef = useRef(null);
+  const rationaleFetchedKeyRef = useRef(null);
+  const analystEditedRationaleRef = useRef(false);
 
   // ── Customer Verification State (n8n VerifyFlow) ─────────────────────────
   const [verificationStatus, setVerificationStatus] = useState(null);
@@ -106,41 +113,69 @@ const InvestigationSidebar = ({
     }
   }, [autoOpenReleaseModal, isAccountFrozen]);
 
+  // Reset per-modal-open guards whenever the target case/tx changes so a
+  // freshly opened modal for a different case can fetch again.
+  useEffect(() => {
+    if (!showReleaseModal) {
+      analystEditedRationaleRef.current = false;
+    }
+  }, [showReleaseModal]);
+
   useEffect(() => {
     const currentKey = `${caseId}_${txId}`;
-    if (showReleaseModal && caseId && txId) {
-      if (lastFetchedKey !== currentKey || (!releaseReason && !fetchingAiRationale && !aiRationaleError)) {
-        setFetchingAiRationale(true);
-        setAiRationaleError(null);
-        setLastFetchedKey(currentKey);
+    if (!showReleaseModal || !caseId || !txId) return;
 
-        fetch(`${API_BASE}/cases/${caseId}/transactions/${txId}/suggest-release-rationale`)
-          .then(async (res) => {
-            if (!res.ok) {
-              const err = await res.json().catch(() => null);
-              throw new Error(err?.detail || `AI rationale unavailable (HTTP ${res.status})`);
-            }
-            return res.json();
-          })
-          .then((data) => {
-            if (data && data.rationale) {
-              setReleaseReason(data.rationale);
-              setAiRationaleSuggested(true);
-              setAiRationaleError(null);
-            } else {
-              throw new Error("No rationale returned from AI service");
-            }
-          })
-          .catch((err) => {
-            setAiRationaleSuggested(false);
-            setAiRationaleError("AI suggestion unavailable. Enter a release rationale manually.");
-          })
-          .finally(() => {
-            setFetchingAiRationale(false);
-          });
-      }
+    // Ref guard: a fetch for this exact key is already in flight or has
+    // already completed -- never fire a duplicate (covers StrictMode's
+    // double-invoke and rapid re-renders where state hasn't committed yet).
+    if (rationaleInFlightKeyRef.current === currentKey || rationaleFetchedKeyRef.current === currentKey) {
+      return;
     }
-  }, [showReleaseModal, caseId, txId, lastFetchedKey, releaseReason, fetchingAiRationale, aiRationaleError, API_BASE]);
+    // Never overwrite text the analyst has already started typing.
+    if (analystEditedRationaleRef.current) {
+      return;
+    }
+
+    rationaleInFlightKeyRef.current = currentKey;
+    setFetchingAiRationale(true);
+    setAiRationaleError(null);
+    setLastFetchedKey(currentKey);
+
+    fetch(`${API_BASE}/cases/${caseId}/transactions/${txId}/suggest-release-rationale`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          throw new Error(err?.detail || `AI rationale unavailable (HTTP ${res.status})`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        rationaleFetchedKeyRef.current = currentKey;
+        if (data && data.rationale) {
+          // Only populate the textarea if the analyst hasn't already typed
+          // their own rationale in the meantime (cached hits resolve fast,
+          // but an uncached generation can take a while).
+          if (!analystEditedRationaleRef.current) {
+            setReleaseReason(data.rationale);
+            setAiRationaleSuggested(true);
+            setAiRationaleError(null);
+          }
+        } else {
+          throw new Error("No rationale returned from AI service");
+        }
+      })
+      .catch(() => {
+        rationaleFetchedKeyRef.current = currentKey;
+        setAiRationaleSuggested(false);
+        setAiRationaleError("AI suggestion unavailable. Please review and enter a release rationale manually.");
+      })
+      .finally(() => {
+        if (rationaleInFlightKeyRef.current === currentKey) {
+          rationaleInFlightKeyRef.current = null;
+        }
+        setFetchingAiRationale(false);
+      });
+  }, [showReleaseModal, caseId, txId, API_BASE]);
 
   // Keyboard shortcut: Escape to close modal or workspace
   useEffect(() => {
@@ -1256,6 +1291,7 @@ const InvestigationSidebar = ({
                   <textarea
                     value={releaseReason}
                     onChange={(e) => {
+                      analystEditedRationaleRef.current = true;
                       setReleaseReason(e.target.value);
                       if (aiRationaleError && e.target.value.trim()) {
                         setAiRationaleError(null);

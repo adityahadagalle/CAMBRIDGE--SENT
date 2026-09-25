@@ -686,18 +686,28 @@ class OllamaService:
         lines.append("Provide your structured JSON analysis synthesizing this investigation.")
         return "\n".join(lines)
 
-    def _call_chat(self, user_message: str, system_prompt: str | None = None) -> str:
+    def _call_chat(
+        self,
+        user_message: str,
+        system_prompt: str | None = None,
+        num_predict: int = 1500,
+        temperature: float = 0.1,
+    ) -> str:
         """
         POST to /api/chat with non-streaming response.
         Raises TimeoutError on timeout, URLError on network issues.
+
+        num_predict/temperature are overridable per-call so short-form outputs
+        (e.g. a 1-3 sentence release rationale) can cap generation length
+        instead of always allowing up to 1500 tokens.
         """
         model = self._resolve_model()
         payload = {
             "model": model,
             "stream": False,
             "options": {
-                "temperature": 0.1,   # Low temperature for consistent, grounded analysis
-                "num_predict": 1500,
+                "temperature": temperature,   # Low temperature for consistent, grounded analysis
+                "num_predict": num_predict,
             },
             "messages": [
                 {"role": "system", "content": system_prompt or SENTINEL_SYSTEM_PROMPT},
@@ -989,7 +999,12 @@ class OllamaService:
         )
 
         try:
-            raw_response = self._call_chat(user_message, system_prompt=SENTINEL_RATIONALE_SYSTEM_PROMPT)
+            raw_response = self._call_chat(
+                user_message,
+                system_prompt=SENTINEL_RATIONALE_SYSTEM_PROMPT,
+                num_predict=220,
+                temperature=0.1,
+            )
         except TimeoutError:
             return ReleaseRationaleResult(
                 status="timeout",
@@ -1052,16 +1067,58 @@ class OllamaService:
                 if k in pt:
                     lines.append(f"  {k}: {pt[k]}")
 
+        # Lightweight per-stage conclusions only -- NOT the full raw report
+        # dump. A 1-3 sentence rationale needs a short "what did this stage
+        # conclude" line per completed stage, not up to 2000 chars x 5
+        # stages of nested JSON. Keeps prompt size roughly an order of
+        # magnitude smaller while preserving grounding.
         inv_reports = ctx.get("investigation_reports", {}) if ctx else {}
+        stage_conclusion_keys = (
+            "summary", "conclusion", "narrative", "assessment",
+            "overall_risk_level", "final_recommendation", "recommendation",
+        )
         for stg in ["evidence", "contextual", "regulatory", "audit_explanation", "decision_support"]:
-            if stg in inv_reports:
-                lines.append("")
-                lines.append(f"--- VERIFIED {stg.upper()} REPORT ---")
-                lines.append(json.dumps(inv_reports[stg], indent=2)[:2000])
+            report = inv_reports.get(stg)
+            if not report:
+                continue
+            conclusion = None
+            if isinstance(report, dict):
+                for k in stage_conclusion_keys:
+                    if report.get(k):
+                        conclusion = report[k]
+                        break
+            if conclusion is None:
+                conclusion = report
+            snippet = json.dumps(conclusion) if not isinstance(conclusion, str) else conclusion
+            snippet = snippet[:300]
+            lines.append("")
+            lines.append(f"--- {stg.upper()} STAGE CONCLUSION ---")
+            lines.append(snippet)
 
         lines.append("")
         lines.append("Based strictly on the customer authorization and the investigation findings above, provide your drafted JSON release rationale.")
         return "\n".join(lines)
+
+    def _build_lightweight_rationale_input(
+        self,
+        case_id: str,
+        transaction_id: str,
+        transaction: dict[str, Any] | None,
+        verification_status: dict[str, Any] | None,
+        stage_conclusions: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Builds the minimal context dict `_build_rationale_message` needs,
+        without requiring a full investigation-context rebuild. Used by the
+        background generation path (n8n webhook trigger) where we don't
+        want to pay the cost of `_build_investigation_context`.
+        """
+        ctx: dict[str, Any] = {}
+        if transaction:
+            ctx["primary_transaction"] = transaction
+        if stage_conclusions:
+            ctx["investigation_reports"] = {k: {"summary": v} for k, v in stage_conclusions.items()}
+        return ctx
 
     def _parse_rationale_response(
         self,

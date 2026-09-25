@@ -3,8 +3,11 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 import asyncio
+import logging
 import random
 import string
+
+logger = logging.getLogger("sentinel")
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query
@@ -45,6 +48,29 @@ from app.repositories.dependencies import get_repository, get_verification_repos
 from app.repositories.verification_repository import AbstractVerificationRepository
 from app.routes.intelligence import _build_investigation_context
 from app.services.ollama_service import ollama_service
+from starlette.concurrency import run_in_threadpool
+
+# In-process dedup: at most one in-flight Ollama rationale generation per
+# (case_id, transaction_id). Guards against a modal re-render racing the
+# background n8n-triggered generation, or duplicate concurrent GETs.
+# Locks are stored alongside the event loop they were created on: a normal
+# long-running uvicorn process has exactly one loop for the app's lifetime,
+# but some test harnesses (e.g. Starlette's TestClient) may spin up a fresh
+# loop per request, which would otherwise make a stale asyncio.Lock unusable
+# ("bound to a different event loop") -- so a lock is recreated if the
+# current running loop doesn't match the one it was created on.
+_rationale_generation_locks: dict[tuple[str, str], tuple[asyncio.AbstractEventLoop, asyncio.Lock]] = {}
+
+
+def _get_rationale_lock(case_id: str, transaction_id: str) -> asyncio.Lock:
+    key = (case_id, transaction_id)
+    current_loop = asyncio.get_running_loop()
+    entry = _rationale_generation_locks.get(key)
+    if entry is None or entry[0] is not current_loop:
+        lock = asyncio.Lock()
+        _rationale_generation_locks[key] = (current_loop, lock)
+        return lock
+    return entry[1]
 
 
 @asynccontextmanager
@@ -1681,30 +1707,7 @@ class ReleaseRequestPayload(BaseModel):
     reason: str
 
 
-@app.get("/cases/{case_id}/transactions/{transaction_id}/suggest-release-rationale")
-async def suggest_release_rationale_endpoint(
-    case_id: str,
-    transaction_id: str,
-    repo: AbstractCaseRepository = Depends(get_repository),
-    ver_repo: AbstractVerificationRepository = Depends(get_verification_repository),
-) -> dict[str, Any]:
-    """
-    AI-generated release rationale suggestion based on available case evidence.
-    AI is strictly advisory and cannot execute release.
-    """
-    ctx = await _build_investigation_context(case_id, data_store, repo=repo)
-    if not ctx:
-        ctx = {}
-    if not ctx.get("primary_transaction"):
-        tx = data_store.get("transactions", {}).get(transaction_id)
-        if not tx and hasattr(repo, "get_transaction_by_id"):
-            try:
-                tx = await repo.get_transaction_by_id(transaction_id)
-            except Exception:
-                tx = None
-        if tx:
-            ctx["primary_transaction"] = tx
-
+async def _gather_verification_status(case_id: str, ver_repo) -> dict[str, Any] | None:
     ver_status = None
     if ver_repo:
         try:
@@ -1727,18 +1730,119 @@ async def suggest_release_rationale_endpoint(
         raw_ver = data_store.get("customer_verifications", {}).get(case_id)
         if raw_ver:
             ver_status = raw_ver if isinstance(raw_ver, dict) else {"status": str(raw_ver), "triggered": True}
+    return ver_status
 
-    res = ollama_service.suggest_release_rationale(
-        case_id=case_id,
-        transaction_id=transaction_id,
-        investigation_context=ctx or {},
-        verification_status=ver_status
+
+async def _generate_and_persist_rationale(
+    case_id: str,
+    transaction_id: str,
+    repo: AbstractCaseRepository,
+    ver_repo: AbstractVerificationRepository,
+) -> Any:
+    """
+    Full (uncached) generation path: rebuild lightweight context, offload the
+    blocking Ollama call to a threadpool so the event loop is never blocked,
+    then persist status + result. Serialized per (case_id, transaction_id)
+    by the caller's lock so concurrent requests never double-generate.
+    """
+    ctx = await _build_investigation_context(case_id, data_store, repo=repo)
+    if not ctx:
+        ctx = {}
+    if not ctx.get("primary_transaction"):
+        tx = data_store.get("transactions", {}).get(transaction_id)
+        if not tx and hasattr(repo, "get_transaction_by_id"):
+            try:
+                tx = await repo.get_transaction_by_id(transaction_id)
+            except Exception:
+                tx = None
+        if tx:
+            ctx["primary_transaction"] = tx
+
+    ver_status = await _gather_verification_status(case_id, ver_repo)
+
+    if ver_repo:
+        try:
+            await ver_repo.set_rationale(case_id, transaction_id, status="PENDING")
+            await ver_repo.commit_transaction()
+        except Exception as e:
+            logger.warning(f"Could not mark rationale PENDING for {case_id}/{transaction_id}: {e}")
+
+    # suggest_release_rationale() already performs its own is_available()
+    # check internally -- don't duplicate it here (that would double the
+    # blocking network round-trip / timeout on every uncached call).
+    res = await run_in_threadpool(
+        ollama_service.suggest_release_rationale,
+        case_id,
+        transaction_id,
+        ctx or {},
+        ver_status,
     )
-    
-    if res.status != "ready" or not res.response:
-        raise HTTPException(status_code=503, detail=res.error_detail or "AI rationale generation failed.")
-        
-    return {"rationale": res.response.rationale}
+
+    if ver_repo:
+        try:
+            if res.status == "ready" and res.response:
+                await ver_repo.set_rationale(
+                    case_id, transaction_id,
+                    status="READY",
+                    rationale=res.response.rationale,
+                    model=res.model,
+                )
+            else:
+                await ver_repo.set_rationale(case_id, transaction_id, status="FAILED")
+            await ver_repo.commit_transaction()
+        except Exception as e:
+            logger.warning(f"Could not persist rationale for {case_id}/{transaction_id}: {e}")
+
+    return res
+
+
+@app.get("/cases/{case_id}/transactions/{transaction_id}/suggest-release-rationale")
+async def suggest_release_rationale_endpoint(
+    case_id: str,
+    transaction_id: str,
+    repo: AbstractCaseRepository = Depends(get_repository),
+    ver_repo: AbstractVerificationRepository = Depends(get_verification_repository),
+) -> dict[str, Any]:
+    """
+    AI-generated release rationale suggestion based on available case evidence.
+    AI is strictly advisory and cannot execute release.
+
+    Fast path: a previously-persisted READY suggestion (typically produced by
+    the background task fired from the n8n customer-YES webhook) is returned
+    immediately without touching Ollama or rebuilding investigation context.
+    Only when no persisted suggestion exists do we generate synchronously
+    (offloaded to a threadpool), and concurrent callers for the same
+    case+transaction are serialized so at most one generation is in flight.
+    """
+    cached = None
+    if ver_repo:
+        try:
+            cached = await ver_repo.get_rationale_for_case_tx(case_id, transaction_id)
+        except Exception as e:
+            logger.warning(f"Error fetching cached rationale for {case_id}/{transaction_id}: {e}")
+
+    if cached and cached.get("suggested_rationale_status") == "READY" and cached.get("suggested_release_rationale"):
+        return {"rationale": cached["suggested_release_rationale"], "cached": True}
+
+    lock = _get_rationale_lock(case_id, transaction_id)
+    async with lock:
+        # Re-check after acquiring the lock -- another request (or the
+        # background webhook task) may have just finished generating.
+        if ver_repo:
+            try:
+                cached = await ver_repo.get_rationale_for_case_tx(case_id, transaction_id)
+            except Exception:
+                cached = cached
+        if cached and cached.get("suggested_rationale_status") == "READY" and cached.get("suggested_release_rationale"):
+            return {"rationale": cached["suggested_release_rationale"], "cached": True}
+
+        res = await _generate_and_persist_rationale(case_id, transaction_id, repo, ver_repo)
+
+    if res is None or res.status != "ready" or not res.response:
+        detail = getattr(res, "error_detail", None) if res is not None else "Ollama is not reachable at configured URL."
+        raise HTTPException(status_code=503, detail=detail or "AI rationale generation failed.")
+
+    return {"rationale": res.response.rationale, "cached": False}
 
 
 @app.post("/cases/{case_id}/transactions/{transaction_id}/release")
