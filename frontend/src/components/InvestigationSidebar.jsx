@@ -65,6 +65,12 @@ const InvestigationSidebar = ({
   const [frozenBy, setFrozenBy] = useState(null);
   const [frozenAt, setFrozenAt] = useState(null);
 
+  // ── Freeze/Unfreeze Report Download State (read-only, additive) ─────────
+  // Mirrors frozenBy/frozenAt above: ground truth from the server so the
+  // "Download Unfreeze Report" button only appears once an unfreeze event
+  // actually exists, surviving reload the same way the freeze badge does.
+  const [releasedAt, setReleasedAt] = useState(null);
+
   // ── Release / Unfreeze State (human-only, mandatory rationale) ──────────
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [releaseReason, setReleaseReason] = useState('');
@@ -259,6 +265,7 @@ const InvestigationSidebar = ({
           setIsAccountFrozen(Boolean(data.frozen));
           setFrozenBy(data.frozen_by || null);
           setFrozenAt(data.frozen_at || null);
+          setReleasedAt(data.released_at || null);
         })
         .catch(() => {});
     };
@@ -1108,6 +1115,47 @@ const InvestigationSidebar = ({
                     HUMAN OPERATOR APPROVAL REQUIRED
                   </span>
                 </button>
+              )}
+
+              {/* ── FREEZE/UNFREEZE/COMPLETE CASE REPORT DOWNLOADS (read-only) ──
+                  Additive only: links straight to the isolated report module's
+                  GET endpoints. Downloading never freezes, releases, or
+                  otherwise mutates anything -- it only reads existing data. */}
+              {isAccountFrozen && (
+                <a
+                  href={`${API_BASE}/cases/${caseId}/reports/freeze/pdf?account_id=${encodeURIComponent(sender)}&tx_id=${encodeURIComponent(txId)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all bg-[#1E293B] hover:bg-[#334155] text-slate-200 border border-[#334155]"
+                  title="Download a PDF report of this account's freeze event"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>DOWNLOAD FREEZE REPORT</span>
+                </a>
+              )}
+              {!isAccountFrozen && releasedAt && (
+                <a
+                  href={`${API_BASE}/cases/${caseId}/reports/unfreeze/pdf?account_id=${encodeURIComponent(sender)}&tx_id=${encodeURIComponent(txId)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all bg-[#1E293B] hover:bg-[#334155] text-slate-200 border border-[#334155]"
+                  title="Download a PDF report of this account's unfreeze event"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>DOWNLOAD UNFREEZE REPORT</span>
+                </a>
+              )}
+              {(isAccountFrozen || releasedAt) && (
+                <a
+                  href={`${API_BASE}/cases/${caseId}/reports/complete/pdf?account_id=${encodeURIComponent(sender)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all bg-[#1E293B] hover:bg-[#334155] text-slate-200 border border-[#334155]"
+                  title="Download a complete PDF report for this case"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>DOWNLOAD COMPLETE CASE REPORT</span>
+                </a>
               )}
             </div>
           </footer>

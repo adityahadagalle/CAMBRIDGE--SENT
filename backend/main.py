@@ -135,6 +135,10 @@ app.include_router(benchmark_router)
 from app.routes.n8n import router as n8n_router, n8n_route_state
 app.include_router(n8n_router)
 
+# ── FREEZE/UNFREEZE/COMPLETE CASE REPORT ROUTER (read-only PDF export) ─────────
+from app.routes.reports import router as reports_router
+app.include_router(reports_router)
+
 class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: list[WebSocket] = []
