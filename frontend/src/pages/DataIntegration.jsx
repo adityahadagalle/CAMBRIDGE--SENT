@@ -12,7 +12,6 @@ import {
   RotateCcw, 
   FastForward, 
   Activity, 
-  Info,
   Cpu,
   Share2,
   ShieldAlert,
@@ -1119,32 +1118,6 @@ const DataIntegration = () => {
           </div>
         </div>
 
-      </div>
-
-      {/* ============================================================ */}
-      {/* 6. CONCISE PRODUCTION & REGULATORY SPECIFICATIONS            */}
-      {/* ============================================================ */}
-      <div className="bg-[#0B1120] border border-slate-800/80 rounded-lg p-3 text-xs flex items-start gap-2.5">
-        <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-        <div className="space-y-1.5 w-full">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-slate-200 uppercase tracking-wide text-[11px] block">
-              DEMONSTRATION MODE & PAYMENT RAIL SPECIFICATIONS
-            </span>
-            <span className="text-[10px] font-mono text-slate-500">
-              SYNTHETIC DATASET · 5,000 RECORDS
-            </span>
-          </div>
-          <p className="text-slate-400 leading-relaxed text-[11px]">
-            This page simulates an authorized organization API using synthetic transaction data. In production, the simulated source can be replaced by an organization's authorized API, secure transaction stream, or approved system connector.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5 pt-1.5 text-[10px] text-slate-400 border-t border-slate-800/60 font-mono">
-            <div>• <strong className="text-slate-300">UPI:</strong> UPI demo transactions use the standard ₹1 lakh P2P ceiling. Certain permitted UPI categories may have higher NPCI limits.</div>
-            <div>• <strong className="text-slate-300">NEFT:</strong> NEFT has no RBI-imposed transaction ceiling; participating banks may apply their own limits.</div>
-            <div>• <strong className="text-slate-300">NET BANKING:</strong> Transaction amounts reflect institution- and account-profile specific transaction thresholds.</div>
-            <div>• <strong className="text-slate-300">CARD:</strong> Retail/commercial payment card amounts are governed by cardholder credit limits and issuing bank parameters.</div>
-          </div>
-        </div>
       </div>
 
     </div>

@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field, field_validator
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen3:8b")
-OLLAMA_TIMEOUT: int = int(os.getenv("OLLAMA_TIMEOUT", "60"))
+OLLAMA_TIMEOUT: int = int(os.getenv("OLLAMA_TIMEOUT", "120"))
 
 # ── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
 SENTINEL_SYSTEM_PROMPT = """You are the SENTINEL Investigation Intelligence Assistant — an AI analyst assistant embedded in a financial-crime investigation platform.
@@ -705,6 +705,7 @@ class OllamaService:
         payload = {
             "model": model,
             "stream": False,
+            "think": False,
             "options": {
                 "temperature": temperature,   # Low temperature for consistent, grounded analysis
                 "num_predict": num_predict,
@@ -763,6 +764,8 @@ class OllamaService:
         msg = ollama_resp.get("message") or {}
         if isinstance(msg, dict):
             content = msg.get("content", "")
+            if not content and msg.get("thinking"):
+                content = msg.get("thinking", "")
 
         if not content:
             return IntelligenceResult(
@@ -906,6 +909,8 @@ class OllamaService:
         msg = ollama_resp.get("message") or {}
         if isinstance(msg, dict):
             content = msg.get("content", "")
+            if not content and msg.get("thinking"):
+                content = msg.get("thinking", "")
 
         if not content:
             return ChallengeResult(

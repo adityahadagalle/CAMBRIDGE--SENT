@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, Shield, ShieldAlert, ShieldCheck, Activity, ArrowRight, CheckCircle2, 
-  AlertTriangle, HelpCircle, RefreshCw, Send, Sparkles, Scale, BookOpen, 
+  AlertTriangle, AlertCircle, HelpCircle, RefreshCw, Send, Sparkles, Scale, BookOpen, 
   Layers, Check, Info, FileText, CornerDownRight, Lightbulb, MessageSquareQuote
 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
@@ -268,6 +268,21 @@ export const FindingChallengeModal = ({
             )}
           </div>
 
+          {/* Loading Indicator for Advisory Reassessment */}
+          {loading && (
+            <div className="p-4 rounded-xl border border-sky-500/30 bg-[#05111B] flex items-center gap-3 animate-pulse">
+              <div className="w-5 h-5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin shrink-0" />
+              <div className="space-y-0.5 font-mono">
+                <div className="text-xs font-bold text-sky-300 uppercase tracking-wider">
+                  ANALYZING CHALLENGE · OLLAMA ADVISORY ENGINE
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  Reassessing evidence against analyst inquiry using local qwen3:8b...
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Structured Challenge Response */}
           {challengeResult && (
             <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -361,7 +376,7 @@ export const FindingChallengeModal = ({
                           <div key={idx} className="p-2 rounded bg-[#020710] border border-[#1E293B] text-[11px] font-mono flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <span className="text-sky-400 font-bold">{ev.evidence_id}</span>
-                              <span className="text-slate-300 font-sans">{ev.relevance}</span>
+                              <span className="text-slate-300 font-sans">{ev.description || ev.relevance}</span>
                             </div>
                             {ev.direction && (
                               <span className={twMerge(

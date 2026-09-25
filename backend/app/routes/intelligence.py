@@ -219,7 +219,24 @@ async def _build_investigation_context(
                             inv_status[stg_lower] = "COMPLETED"
                             break
 
-    # 4. Check case object for attached reports or stages
+    # 4. Check direct report properties on the case object
+    stage_attr_map = {
+        "evidence": ["evidence", "evidence_package"],
+        "contextual": ["contextual", "contextual_investigation"],
+        "regulatory": ["regulatory", "regulatory_assessment"],
+        "audit_explanation": ["audit_explanation"],
+        "decision_support": ["decision_support", "analyst_decision_support"],
+    }
+    for stg_lower, attrs in stage_attr_map.items():
+        if stg_lower not in inv_reports:
+            for attr in attrs:
+                val = case.get(attr)
+                if val and isinstance(val, dict):
+                    inv_reports[stg_lower] = val
+                    inv_status[stg_lower] = "COMPLETED"
+                    break
+
+    # Also check case.stages / investigation_stages array
     case_stages = case.get("stages") or case.get("investigation_stages") or []
     if isinstance(case_stages, list):
         for s in case_stages:
@@ -232,17 +249,51 @@ async def _build_investigation_context(
                         inv_reports[stg_name] = s["output"]
                         inv_status[stg_name] = "COMPLETED"
 
-    # 5. Deterministic fallback for EVIDENCE collection stage if report is missing
+    # 5. Deterministic engine fallback if any stage is still missing
     if "evidence" not in inv_reports:
-        if case.get("evidence") and isinstance(case["evidence"], dict) and case["evidence"].get("evidence"):
-            inv_reports["evidence"] = case["evidence"]
-            inv_status["evidence"] = "COMPLETED"
-        else:
+        try:
+            ev_pkg = collect_evidence_for_case(case_id, store)
+            if ev_pkg and ev_pkg.get("found"):
+                inv_reports["evidence"] = ev_pkg
+                inv_status["evidence"] = "COMPLETED"
+        except Exception:
+            pass
+
+    if "evidence" in inv_reports:
+        if "contextual" not in inv_reports:
             try:
-                ev_pkg = collect_evidence_for_case(case_id, store)
-                if ev_pkg and ev_pkg.get("found") and ev_pkg.get("evidence"):
-                    inv_reports["evidence"] = ev_pkg
-                    inv_status["evidence"] = "COMPLETED"
+                from app.services.contextual_agent import investigate_context
+                ctx_res = investigate_context(inv_reports["evidence"])
+                if ctx_res:
+                    inv_reports["contextual"] = ctx_res
+                    inv_status["contextual"] = "COMPLETED"
+            except Exception:
+                pass
+        if "regulatory" not in inv_reports:
+            try:
+                from app.services.regulatory_agent import assess_regulatory_risk
+                reg_res = assess_regulatory_risk(inv_reports["evidence"], inv_reports.get("contextual", {}))
+                if reg_res:
+                    inv_reports["regulatory"] = reg_res
+                    inv_status["regulatory"] = "COMPLETED"
+            except Exception:
+                pass
+        if "audit_explanation" not in inv_reports:
+            try:
+                from app.services.audit_agent import generate_audit_explanation
+                aud_res = generate_audit_explanation(inv_reports["evidence"], inv_reports.get("contextual", {}), inv_reports.get("regulatory", {}))
+                if aud_res:
+                    inv_reports["audit_explanation"] = aud_res
+                    inv_status["audit_explanation"] = "COMPLETED"
+            except Exception:
+                pass
+        if "decision_support" not in inv_reports:
+            try:
+                from app.services.decision_agent import generate_analyst_decision_support
+                ds_res = generate_analyst_decision_support(inv_reports["evidence"], inv_reports.get("contextual", {}), inv_reports.get("regulatory", {}), inv_reports.get("audit_explanation", {}), case_context=case)
+                if ds_res:
+                    inv_reports["decision_support"] = ds_res
+                    inv_status["decision_support"] = "COMPLETED"
             except Exception:
                 pass
 
@@ -410,9 +461,13 @@ def _extract_finding_from_stage_report(
         if isinstance(items, list):
             for item in items:
                 if isinstance(item, dict):
-                    for id_key in ("id", "finding_id", "step_id", "rule_id", "pattern_id", "action_code", "indicator", "indicator_code"):
+                    for id_key in ("id", "finding_id", "step_id", "rule_id", "pattern_id", "action_code", "indicator", "indicator_code", "name", "pattern_name"):
                         val = item.get(id_key)
                         if val is not None and str(val).strip().lower() == fid.lower():
+                            return item
+                    for text_key in ("title", "statement", "description", "finding"):
+                        t_val = item.get(text_key)
+                        if t_val and (fid.lower() in str(t_val).lower() or str(t_val).lower() in fid.lower()):
                             return item
 
     # Check top-level summary keys
@@ -422,7 +477,8 @@ def _extract_finding_from_stage_report(
             if str(k).strip().lower() == fid.lower():
                 return {str(k): v}
 
-    return None
+    # Safe fallback so analyst inquiry is never blocked if finding ID format differs
+    return {"finding_id": fid, "stage": stage_name, "stage_summary": summary or {}}
 
 
 @router.post("/challenge", response_model=ChallengeResult)

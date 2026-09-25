@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { setRoleGlobal } from '../roleStore';
-import { Shield, Lock, User, ArrowRight, KeyRound } from 'lucide-react';
+import { Shield, User, KeyRound, ArrowRight } from 'lucide-react';
+import FinancialNetworkAnimation from './FinancialNetworkAnimation';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -13,7 +14,7 @@ const Login = () => {
     setError('');
     setLoading(true);
 
-    // Simulated validation delay for premium feel
+    // Simulated validation delay for authentic operator feel
     setTimeout(() => {
       if (username === 'admin' && password === 'admin123') {
         setRoleGlobal('admin');
@@ -23,7 +24,7 @@ const Login = () => {
         setError('Invalid credentials. Access denied.');
         setLoading(false);
       }
-    }, 600);
+    }, 500);
   };
 
   const handleQuickViewer = () => {
@@ -31,88 +32,126 @@ const Login = () => {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-background z-50 font-sans antialiased overflow-hidden select-none">
-      {/* Background Glows */}
-      <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-sky-500/10 blur-[130px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-blue-600/10 blur-[130px] rounded-full pointer-events-none" />
+    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-[#05070D] flex flex-col lg:flex-row font-sans antialiased select-none">
+      {/* LEFT 50%: AUTHENTICATION PANEL (Clean, centered, ~400px wide, matches screenshot) */}
+      <section 
+        className="w-full lg:w-1/2 h-full flex flex-col justify-center items-center px-6 sm:px-12 py-8 relative z-20 overflow-y-auto"
+        aria-label="Operator Authentication Terminal"
+      >
+        {/* Subtle dark ambient glow behind the card */}
+        <div className="absolute w-[360px] h-[360px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="w-full max-w-md p-8 sm:p-10 rounded-2xl border border-border/80 bg-card/80 backdrop-blur-xl shadow-2xl relative overflow-hidden">
-        {/* Top Accent Line */}
-        <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-sky-400 to-transparent" />
-        
-        {/* Header */}
-        <div className="text-center space-y-2 mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="w-14 h-14 bg-sky-500/10 rounded-2xl flex items-center justify-center border border-sky-500/20 shadow-inner text-sky-400">
-              <Shield className="w-7 h-7" />
+        <div className="w-full max-w-[400px] p-8 sm:p-9 rounded-2xl border border-blue-500/25 bg-[#070D1E]/90 backdrop-blur-xl shadow-[0_0_50px_-10px_rgba(37,99,235,0.2)] relative overflow-hidden">
+          {/* Header */}
+          <header className="text-center flex flex-col items-center mb-6">
+            {/* Shield Icon Badge */}
+            <div className="w-12 h-12 rounded-2xl bg-[#09152E] border border-blue-500/30 flex items-center justify-center text-[#38BDF8] shadow-inner mb-3">
+              <Shield className="w-6 h-6 stroke-[1.5]" aria-hidden="true" />
             </div>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-100">SENTINEL</h1>
-          <p className="text-xs text-slate-400">Enterprise Fraud Security Operations Console</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5 ml-0.5">
-              <User className="w-3.5 h-3.5 text-slate-400" />
-              Terminal Identity
-            </label>
-            <input 
-              type="text" 
-              placeholder="Username (admin / viewer)" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-900/60 border border-border/80 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500/60 outline-none transition-all placeholder:text-slate-500 text-slate-100"
-              required
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-slate-400 flex items-center gap-1.5 ml-0.5">
-              <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-              Access Cipher
-            </label>
-            <input 
-              type="password" 
-              placeholder="Password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-900/60 border border-border/80 rounded-xl text-xs font-medium focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500/60 outline-none transition-all placeholder:text-slate-500 text-slate-100"
-              required
-            />
-          </div>
-
-          {error && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs font-medium text-rose-400 text-center animate-in fade-in duration-200">
-              ⚠️ {error}
+            
+            {/* Live Threat Eyebrow */}
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0A1633] border border-blue-500/30 mb-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#38BDF8]" />
+              <span className="text-[10px] font-mono tracking-widest text-[#7FD0FF] uppercase font-semibold">
+                LIVE THREAT DEFENSE ENGINE
+              </span>
             </div>
-          )}
+            
+            <h1 className="text-2xl font-bold tracking-tight text-white">
+              SENTINEL
+            </h1>
+            <p className="text-xs text-slate-400 mt-1">
+              Enterprise Fraud & Financial Crime Intelligence
+            </p>
+          </header>
 
-          <button 
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-semibold tracking-wide transition-all shadow-lg shadow-sky-500/20 disabled:opacity-50 cursor-pointer mt-2 flex items-center justify-center gap-2"
-          >
-            <span>{loading ? 'Authenticating...' : 'Establish Secure Link'}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </form>
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label 
+                htmlFor="terminal-identity" 
+                className="text-[11px] font-medium text-slate-300 flex items-center gap-1.5 ml-0.5"
+              >
+                <User className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
+                Terminal Identity
+              </label>
+              <input 
+                id="terminal-identity"
+                type="text" 
+                placeholder="Username (admin / viewer)" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-2.5 bg-[#040814] border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                required
+                autoComplete="username"
+              />
+            </div>
 
-        <div className="mt-6 pt-6 border-t border-border/60 text-center space-y-3">
-          <button 
-            onClick={handleQuickViewer}
-            className="text-xs text-sky-400 font-medium hover:underline transition-all"
-          >
-            Bypass with Public Viewer Access →
-          </button>
-          <p className="text-[10px] font-mono text-slate-400">
-            SENTINEL PROD-1.4.0 • Encrypted Operations
-          </p>
+            <div className="space-y-1.5">
+              <label 
+                htmlFor="access-cipher" 
+                className="text-[11px] font-medium text-slate-300 flex items-center gap-1.5 ml-0.5"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
+                Access Cipher
+              </label>
+              <input 
+                id="access-cipher"
+                type="password" 
+                placeholder="Password (admin123 / viewer123)" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2.5 bg-[#040814] border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                required
+                autoComplete="current-password"
+              />
+            </div>
+
+            {error && (
+              <div 
+                className="p-2.5 bg-rose-500/10 border border-rose-500/25 rounded-xl text-xs font-medium text-rose-400 text-center animate-in fade-in duration-200"
+                role="alert"
+              >
+                ⚠️ {error}
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold tracking-wide transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)] disabled:opacity-50 cursor-pointer mt-2 flex items-center justify-center gap-1.5"
+            >
+              <span>{loading ? 'Authenticating...' : 'Establish Secure Link'}</span>
+              <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </form>
+
+          {/* Secondary Action & Footer */}
+          <footer className="mt-5 pt-5 border-t border-slate-800/80 text-center space-y-3">
+            <button 
+              type="button"
+              onClick={handleQuickViewer}
+              className="text-xs text-[#38BDF8] hover:text-[#7FD0FF] font-medium transition-colors cursor-pointer"
+            >
+              Bypass with Public Viewer Access →
+            </button>
+            <div className="flex items-center justify-center gap-1.5 text-[10px] font-mono text-slate-400 pt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span>SENTINEL PROD-1.4.0 • 256-Bit Encrypted Link</span>
+            </div>
+          </footer>
         </div>
-      </div>
+      </section>
+
+      {/* RIGHT 50%: FINANCIAL NETWORK GRAPH (Clean, sparse, matches screenshot) */}
+      <section 
+        className="hidden lg:flex lg:w-1/2 h-full relative overflow-hidden bg-[#05070D] border-l border-slate-900/80 items-center justify-center"
+        aria-label="Real-time Network Investigation & Autonomous Containment Engine"
+      >
+        <FinancialNetworkAnimation />
+      </section>
     </div>
   );
 };
 
 export default Login;
-

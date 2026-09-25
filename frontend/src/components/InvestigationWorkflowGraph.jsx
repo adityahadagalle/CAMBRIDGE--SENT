@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { 
   Check, RefreshCw, AlertTriangle, ArrowRight, ShieldCheck, 
   Layers, Scale, BookOpen, UserCheck, X, Sparkles, Activity,
@@ -716,41 +715,20 @@ const getStageInsightData = (stageKey, data, status, graphData) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CANVAS GEOMETRY — 1200 × 380 viewBox
-// TOP row: y=110  |  BOTTOM row: y=270
+// CANVAS GEOMETRY — 480 × 680 viewBox (Vertical Zig-Zag Investigation Path)
+// 01: Left/Center  →  02: Right  →  03: Left/Center  →  04: Right  →  05: Left/Center
 // ─────────────────────────────────────────────────────────────────────────────
-const CANVAS_W = 1200;
-const CANVAS_H = 380;
+const CANVAS_W = 480;
+const CANVAS_H = 680;
 const NODE_R = 36; // circle radius in SVG units
 
 const NODE_LAYOUT = [
-  { id: 'evidence',   cx: 150,  cy: 110, row: 'top'    },
-  { id: 'contextual', cx: 400,  cy: 270, row: 'bottom' },
-  { id: 'regulatory', cx: 650,  cy: 110, row: 'top'    },
-  { id: 'audit',      cx: 900,  cy: 270, row: 'bottom' },
-  { id: 'decision',   cx: 1080, cy: 110, row: 'top'    },
+  { id: 'evidence',   cx: 140, cy: 80,  col: 'left'  },
+  { id: 'contextual', cx: 340, cy: 215, col: 'right' },
+  { id: 'regulatory', cx: 140, cy: 350, col: 'left'  },
+  { id: 'audit',      cx: 340, cy: 485, col: 'right' },
+  { id: 'decision',   cx: 140, cy: 620, col: 'left'  },
 ];
-
-// Horizontal anchor percentages for detail panel stem (matching SVG cx coordinates)
-const STAGE_ANCHOR_PCT = {
-  evidence: 12.5,
-  contextual: 33.33,
-  regulatory: 54.17,
-  audit: 75.0,
-  decision: 90.0,
-};
-
-// Edge-aware horizontal alignment for the detail panel beneath the selected node
-const getContainerAlignment = (key) => {
-  switch (key) {
-    case 'evidence':   return 'mr-auto ml-0 sm:ml-2';
-    case 'contextual': return 'mr-auto ml-0 sm:ml-[6%] xl:ml-[10%]';
-    case 'regulatory': return 'mx-auto';
-    case 'audit':      return 'ml-auto mr-0 sm:mr-[6%] xl:mr-[10%]';
-    case 'decision':   return 'ml-auto mr-0 sm:mr-2';
-    default:           return 'mx-auto';
-  }
-};
 
 // Backbone connector endpoints (from edge of source circle to edge of dest circle)
 const SEGMENTS = NODE_LAYOUT.slice(0, 4).map((from, i) => {
@@ -779,202 +757,282 @@ const statusColor = (status) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FLOATING AGENT TOOLTIP CARD & POSITIONING (Rendered via Portal to escape clipping)
 // ─────────────────────────────────────────────────────────────────────────────
-const TOOLTIP_WIDTH = 320;
-const TOOLTIP_HEIGHT_ESTIMATE = 235;
+// CLICK-ACTIVATED AGENT INFORMATION PANEL (Rendered on the RIGHT side of the workflow)
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// CLICK-ACTIVATED AGENT INFORMATION PANEL (Rendered on the RIGHT side of the workflow)
+// ─────────────────────────────────────────────────────────────────────────────
+const AgentRightDetailPanel = ({
+  stage,
+  isOpen = false,
+  topOffset = 10,
+  isDesktop = true,
+  onClose,
+  onViewReport,
+  prefersReducedMotion = false,
+}) => {
+  const [showAdditional, setShowAdditional] = useState(false);
 
-const computeTooltipPosition = (stage, svgEl, containerEl) => {
-  if (!stage || !stage.layout || !svgEl) return null;
+  useEffect(() => {
+    setShowAdditional(false);
+  }, [stage?.key]);
 
-  const svgRect = svgEl.getBoundingClientRect();
-  const containerRect = containerEl ? containerEl.getBoundingClientRect() : svgRect;
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-
-  const scaleX = svgRect.width / CANVAS_W;
-  const scaleY = svgRect.height / CANVAS_H;
-
-  const { cx, cy, row } = stage.layout;
-  const circleCenterX = svgRect.left + cx * scaleX;
-  const circleCenterY = svgRect.top + cy * scaleY;
-  const circleRadius = NODE_R * scaleY;
-
-  // Node bounding box in screen pixels (incorporating circle + inline static card)
-  let nodeTop = circleCenterY - circleRadius;
-  let nodeBottom = circleCenterY + circleRadius;
-
-  if (row === 'top') {
-    // Top row: inline card is below circle, ending at SVG y = 240
-    nodeBottom = svgRect.top + 240 * scaleY;
-  } else {
-    // Bottom row: inline card is above circle, starting at SVG y = 140
-    nodeTop = svgRect.top + 140 * scaleY;
-  }
-
-  const effectiveTooltipWidth = Math.min(TOOLTIP_WIDTH, viewportWidth - 32);
-
-  // Available vertical boundaries respecting both the workflow container and viewport
-  // This prevents the tooltip from overflowing over footers, action bars, or out of viewport
-  const maxBottomBound = Math.min(viewportHeight - 12, containerRect.bottom - 4);
-  const minTopBound = Math.max(12, containerRect.top + 4);
-
-  const spaceBelow = maxBottomBound - nodeBottom;
-  const spaceAbove = nodeTop - minTopBound;
-  const requiredHeight = TOOLTIP_HEIGHT_ESTIMATE + 12;
-
-  let placement = 'below';
-  let top = 0;
-
-  // Requirement 3:
-  // - If there is space below → show below.
-  // - If there is not enough space below → show above.
-  if (spaceBelow >= requiredHeight) {
-    placement = 'below';
-    top = nodeBottom + 8;
-  } else if (spaceAbove >= requiredHeight) {
-    placement = 'above';
-    top = nodeTop - TOOLTIP_HEIGHT_ESTIMATE - 8;
-  } else {
-    // Fallback: pick the side with more room
-    if (spaceBelow >= spaceAbove) {
-      placement = 'below';
-      top = Math.min(nodeBottom + 8, viewportHeight - TOOLTIP_HEIGHT_ESTIMATE - 12);
-    } else {
-      placement = 'above';
-      top = Math.max(12, nodeTop - TOOLTIP_HEIGHT_ESTIMATE - 8);
-    }
-  }
-
-  // Safety clamp to guarantee tooltip is always within viewport
-  top = Math.max(12, Math.min(top, viewportHeight - TOOLTIP_HEIGHT_ESTIMATE - 12));
-
-  // Horizontal positioning:
-  // Center on node, then reposition inward if near edges
-  const idealLeft = circleCenterX - effectiveTooltipWidth / 2;
-
-  // If container is wide enough, keep tooltip within the container bounds
-  // Otherwise, keep within viewport bounds
-  let minLeft = 16;
-  let maxLeft = viewportWidth - effectiveTooltipWidth - 16;
-
-  if (containerRect.width >= effectiveTooltipWidth + 24) {
-    minLeft = Math.max(16, containerRect.left + 8);
-    maxLeft = Math.min(viewportWidth - effectiveTooltipWidth - 16, containerRect.right - effectiveTooltipWidth - 8);
-  }
-
-  const left = Math.max(minLeft, Math.min(idealLeft, maxLeft));
-
-  // Pointer arrow points directly at circle center
-  const rawArrowX = circleCenterX - left;
-  const arrowX = Math.max(24, Math.min(rawArrowX, effectiveTooltipWidth - 24));
-
-  return { top, left, arrowX, placement, width: effectiveTooltipWidth };
-};
-
-const AgentTooltipCard = ({ stage, placement, arrowX, prefersReducedMotion }) => {
   if (!stage || !stage.insight) return null;
   const { insight } = stage;
   const sc = statusColor(stage.status);
 
   return (
-    <div className="relative font-sans select-none pointer-events-none">
-      {/* Pointer arrow (rotated square with matching border and background) */}
-      <div
-        className="absolute w-2.5 h-2.5 bg-[#070D18] pointer-events-none"
-        style={{
-          left: `${arrowX}px`,
-          transform: 'translateX(-50%) rotate(45deg)',
-          zIndex: 20,
-          ...(placement === 'below'
-            ? {
-                top: '-5px',
-                borderLeft: `1px solid ${sc.ring}88`,
-                borderTop: `1px solid ${sc.ring}88`,
-              }
-            : {
-                bottom: '-5px',
-                borderRight: `1px solid ${sc.ring}88`,
-                borderBottom: `1px solid ${sc.ring}88`,
-              }),
-        }}
-      />
-
+    <div
+      role="region"
+      aria-label={`Forensic profile for ${insight.fullName}`}
+      className={twMerge(
+        "w-full select-none flex flex-col",
+        isDesktop ? "absolute left-0" : "relative mt-4",
+        isOpen
+          ? "opacity-100 translate-x-0 pointer-events-auto"
+          : "opacity-0 translate-x-4 pointer-events-none"
+      )}
+      style={isDesktop ? {
+        top: `${topOffset}px`,
+        maxHeight: `${Math.max(500, CANVAS_H - topOffset)}px`,
+        transition: prefersReducedMotion
+          ? 'none'
+          : 'top 260ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease-out, transform 220ms cubic-bezier(0.16, 1, 0.3, 1)',
+      } : {
+        maxHeight: '620px',
+        transition: prefersReducedMotion ? 'none' : 'opacity 200ms ease-out, transform 200ms ease-out',
+      }}
+    >
       {/* Main Card Container */}
       <div
-        className="w-full rounded-xl border shadow-2xl overflow-hidden backdrop-blur-md"
+        className="w-full h-full max-h-full flex flex-col rounded-2xl border shadow-2xl overflow-hidden backdrop-blur-xl"
         style={{
           background: '#070D18',
           borderColor: sc.ring + '66',
-          boxShadow: `0 16px 36px -4px rgba(0, 0, 0, 0.85), 0 0 24px -2px ${sc.glow}`,
+          boxShadow: `0 20px 48px -4px rgba(0, 0, 0, 0.9), 0 0 28px -2px ${sc.glow}`,
         }}
       >
-        {/* Tooltip Header */}
+        {/* Panel Header (Pinned Top) */}
         <div
-          className="px-3.5 py-2.5 border-b bg-[#0A1222]/80 flex items-center justify-between gap-2"
+          className="px-4 py-3 border-b bg-[#0A1222]/95 flex items-center justify-between gap-3 shrink-0"
           style={{ borderColor: '#1E293B' }}
         >
-          <div className="min-w-0">
-            <span
-              className="block font-mono text-[10px] font-black uppercase tracking-wider truncate"
-              style={{ color: sc.text }}
-            >
-              {insight.index} · {insight.fullName}
-            </span>
-            <span className="block text-[8.5px] text-slate-400 font-mono uppercase tracking-tight mt-0.5 truncate">
-              {stage.domain}
-            </span>
-          </div>
-          <span
-            className="px-2 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider whitespace-nowrap shrink-0"
-            style={{ background: sc.bg, color: sc.text, border: `1px solid ${sc.ring}55` }}
-          >
-            {stage.status}
-          </span>
-        </div>
-
-        {/* Primary Finding */}
-        <div className="px-3.5 py-2 border-b bg-[#050B14]/60" style={{ borderColor: '#1E293B' }}>
-          <div className="flex items-center gap-1 mb-1">
-            <Target className="w-2.5 h-2.5 text-sky-400 shrink-0" />
-            <span className="text-[8px] font-mono text-slate-400 uppercase tracking-wider font-bold">
-              Primary Forensic Finding
-            </span>
-          </div>
-          <p className="text-[10px] text-slate-200 leading-relaxed font-sans line-clamp-3">
-            {insight.primaryFinding}
-          </p>
-        </div>
-
-        {/* 2×2 Metric Grid */}
-        <div className="grid grid-cols-2 gap-1 p-2 bg-[#03060C]">
-          {insight.items.map((it, i) => (
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <div
-              key={i}
-              className="px-2.5 py-1.5 rounded-md border border-[#1E293B]/60 bg-[#070E1C]/90 flex flex-col justify-center"
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border"
+              style={{
+                backgroundColor: sc.bg,
+                borderColor: sc.ring + '55',
+              }}
             >
-              <span className="text-[7.5px] font-mono text-slate-500 uppercase tracking-wider truncate">
-                {it.label}
-              </span>
-              <span
-                className="text-[9.5px] font-mono font-bold truncate mt-0.5"
-                style={{
-                  color: it.alert ? '#F43F5E' : it.warn ? '#FCD34D' : it.success ? '#10B981' : '#CBD5E1',
-                }}
-              >
-                {safeFormatValue(it.value, it.label)}
+              {React.createElement(stage.Icon || Shield, {
+                className: "w-4 h-4",
+                style: { color: sc.text },
+              })}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className="font-mono text-[9px] font-black uppercase px-1.5 py-0.5 rounded border shrink-0"
+                  style={{
+                    backgroundColor: sc.bg,
+                    borderColor: sc.ring + '44',
+                    color: sc.text,
+                  }}
+                >
+                  AGENT {insight.index}
+                </span>
+                <span className="font-mono text-xs font-black uppercase tracking-wider text-slate-100 leading-snug break-words">
+                  {insight.fullName}
+                </span>
+              </div>
+              <span className="block text-[8.5px] text-slate-400 font-mono uppercase tracking-tight mt-0.5 break-words">
+                {stage.domain}
               </span>
             </div>
-          ))}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className="px-2 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider whitespace-nowrap shrink-0"
+              style={{ background: sc.bg, color: sc.text, border: `1px solid ${sc.ring}55` }}
+            >
+              {stage.status}
+            </span>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-[#1E293B] transition-colors cursor-pointer"
+                title="Close panel (Esc)"
+                aria-label="Close panel"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Footer Hint */}
+        {/* Scrollable Content Body (Internally Scrolls if Needed) */}
+        <div className="flex-1 overflow-y-auto overscroll-contain custom-scrollbar divide-y divide-[#1E293B]/70">
+          
+          {/* Primary Forensic Finding */}
+          <div className="p-4 bg-[#050B14]/80">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Target className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <span className="text-[8.5px] font-mono text-slate-400 uppercase tracking-wider font-bold">
+                Primary Forensic Finding
+              </span>
+            </div>
+            <p className="text-xs text-slate-100 leading-relaxed font-sans break-words whitespace-normal font-normal">
+              {insight.primaryFinding}
+            </p>
+          </div>
+
+          {/* Forensic Telemetry Metric Grid (Multi-Line Wrapping, No Truncation) */}
+          <div className="p-3 bg-[#03060C]">
+            <div className="text-[8px] font-mono text-slate-500 uppercase tracking-wider mb-2 font-bold flex items-center justify-between">
+              <span>FORENSIC TELEMETRY METRICS</span>
+              <span className="text-slate-600">DETERMINISTIC</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {insight.items.map((it, i) => {
+                const valStr = String(it.value ?? '');
+                const isLong = valStr.length > 20;
+                return (
+                  <div
+                    key={i}
+                    className={twMerge(
+                      "p-2.5 rounded-lg border border-[#1E293B]/80 bg-[#070E1C] flex flex-col justify-between gap-1",
+                      isLong && "sm:col-span-2"
+                    )}
+                  >
+                    <span className="text-[8px] font-mono text-slate-400 uppercase tracking-wider leading-tight">
+                      {it.label}
+                    </span>
+                    <span
+                      className="text-[11.5px] font-mono font-bold tracking-tight leading-snug break-words whitespace-normal"
+                      style={{
+                        color: it.alert ? '#F43F5E' : it.warn ? '#FCD34D' : it.success ? '#10B981' : '#E2E8F0',
+                      }}
+                    >
+                      {safeFormatValue(it.value, it.label)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Key Forensic Insights / Signals (Full Text, No Ellipsis) */}
+          {insight.insights && insight.insights.length > 0 && (
+            <div className="p-3 bg-[#03060C] space-y-2">
+              <div className="text-[8px] font-mono text-slate-500 uppercase tracking-wider flex items-center justify-between font-bold">
+                <div className="flex items-center gap-1.5">
+                  <Info className="w-3 h-3 text-sky-400" />
+                  <span>KEY FORENSIC SIGNALS</span>
+                </div>
+                <span className="text-[7.5px] text-slate-600 font-mono">{insight.insights.length} VERIFIED</span>
+              </div>
+              <div className="space-y-2">
+                {insight.insights.map((ins, idx) => (
+                  <div
+                    key={idx}
+                    className="p-2.5 rounded-lg bg-[#060D1A] border border-[#1E293B]/70 space-y-1"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ backgroundColor: sc.ring }}
+                        />
+                        <span className="text-[10px] font-mono font-bold text-slate-200 uppercase break-words">
+                          {ins.title}
+                        </span>
+                      </div>
+                      {ins.id && (
+                        <span className="text-[7.5px] px-1.5 py-0.5 rounded bg-[#0A1426] border border-[#1E293B] text-sky-300 shrink-0 font-semibold font-mono">
+                          {ins.id}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-sans leading-relaxed break-words whitespace-normal pl-3">
+                      {ins.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Secondary Traceability & Additional Findings (Progressive Disclosure) */}
+          {insight.additionalDetails && insight.additionalDetails.length > 0 && (
+            <div className="p-3 bg-[#03060C]">
+              <button
+                type="button"
+                onClick={() => setShowAdditional(!showAdditional)}
+                className="w-full py-2 px-3 rounded-lg bg-[#070E1C] border border-[#1E293B]/80 hover:border-slate-700 transition-colors flex items-center justify-between text-[8.5px] font-mono font-bold text-slate-300 hover:text-slate-100 cursor-pointer"
+              >
+                <div className="flex items-center gap-1.5">
+                  <GitCommit className="w-3.5 h-3.5 text-sky-400" />
+                  <span>SECONDARY TRACEABILITY ({insight.additionalDetails.length} RECORDS)</span>
+                </div>
+                <ChevronDown className={twMerge("w-3.5 h-3.5 transition-transform duration-200", showAdditional && "rotate-180")} />
+              </button>
+              {showAdditional && (
+                <div className="mt-2 p-2.5 rounded-lg bg-[#050A14] border border-[#1E293B]/70 space-y-2 max-h-[220px] overflow-y-auto custom-scrollbar">
+                  {insight.additionalDetails.map((det, dIdx) => (
+                    <div key={dIdx} className="p-2 rounded bg-[#081020] border border-[#1E293B]/60 flex flex-col gap-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-tight break-words">{det.label}</span>
+                        {det.id && (
+                          <span className="text-[7.5px] font-mono px-1.5 py-0.5 rounded bg-[#0D182A] border border-[#1E293B] text-sky-400 shrink-0 font-semibold">{det.id}</span>
+                        )}
+                      </div>
+                      <div className="text-[10.5px] text-slate-200 font-sans leading-relaxed break-words">{safeFormatValue(det.value, det.label)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+
+        {/* Active Node Selection / Action Hint Footer (Pinned Bottom) */}
         <div
-          className="px-3.5 py-1.5 border-t bg-[#050A14] flex items-center justify-between text-[8px] font-mono text-slate-500 uppercase tracking-wider"
+          className="px-4 py-2.5 border-t bg-[#050A14] flex flex-wrap items-center justify-between gap-2 text-[8.5px] font-mono text-sky-400 uppercase tracking-wider shrink-0"
           style={{ borderColor: '#1E293B' }}
         >
-          <span>Click node to open full report</span>
-          <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
+          <div className="flex items-center gap-1.5 text-slate-400">
+            <CheckCircle2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+            <span className="font-bold text-sky-300">STAGE {insight.index} ACTIVE</span>
+            <span className="text-slate-600">·</span>
+            <span className="text-slate-400 font-normal">1–5 SWITCH</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {onViewReport && (
+              <button
+                type="button"
+                onClick={onViewReport}
+                className="px-2.5 py-1 rounded bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 font-mono text-[8.5px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
+                title="View comprehensive forensic technical report"
+              >
+                <Eye className="w-3 h-3" />
+                <span>FULL REPORT</span>
+              </button>
+            )}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-2 py-1 rounded hover:bg-[#1E293B] text-slate-400 hover:text-slate-200 font-mono text-[8.5px] uppercase tracking-wider transition-colors cursor-pointer"
+                title="Close panel (Esc)"
+              >
+                ESC / ✕
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -990,75 +1048,32 @@ export const InvestigationWorkflowGraph = ({
   caseId,
 }) => {
   const [selectedStageKey, setSelectedStageKey] = useState(timelineStages[0]?.key || 'evidence');
-  const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(true);
-  const [showAdditionalDetails, setShowAdditionalDetails] = useState(false);
-  const [hoveredStageKey, setHoveredStageKey] = useState(null);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+  const [hoveredNodeKey, setHoveredNodeKey] = useState(null);
   const [activeReportKey, setActiveReportKey] = useState(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const startTimeRef = useRef(Date.now());
   const [elapsedSec, setElapsedSec] = useState(0);
 
-  // Reset progressive disclosure whenever selected stage changes
-  useEffect(() => {
-    setShowAdditionalDetails(false);
-  }, [selectedStageKey]);
+  // Unified agent selection handler (mouse click, keyboard 1-5, or selector pills)
+  // NEVER scrolls the page - strictly selects agent and opens right-side panel
+  const handleSelectAgent = useCallback((stageKey) => {
+    setSelectedStageKey(stageKey);
+    setIsRightPanelOpen(true);
+  }, []);
 
-  // Portal Tooltip state
-  const [activeTooltip, setActiveTooltip] = useState(null);
-  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0, arrowX: 0, placement: 'below', width: TOOLTIP_WIDTH });
-  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+  // Responsive desktop detection for layout positioning
+  const [isDesktop, setIsDesktop] = useState(true);
   const svgRef = useRef(null);
   const containerRef = useRef(null);
-  const closeTimerRef = useRef(null);
-
-  const updateTooltipPosition = useCallback((stage) => {
-    if (!stage || !svgRef.current) return;
-    const pos = computeTooltipPosition(stage, svgRef.current, containerRef.current);
-    if (pos) {
-      setTooltipPos(pos);
-    }
-  }, []);
-
-  const handleNodeMouseEnter = useCallback((stage) => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-    setHoveredStageKey(stage.key);
-    setActiveTooltip(stage);
-    updateTooltipPosition(stage);
-    setIsTooltipVisible(true);
-  }, [updateTooltipPosition]);
-
-  const handleNodeMouseLeave = useCallback(() => {
-    setHoveredStageKey(null);
-    setIsTooltipVisible(false);
-    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    closeTimerRef.current = setTimeout(() => {
-      setActiveTooltip(null);
-    }, 170);
-  }, []);
-
-  // Update tooltip position on window scroll (capture phase) or resize
-  useEffect(() => {
-    if (!activeTooltip || !svgRef.current) return;
-    const handleUpdate = () => {
-      if (activeTooltip && svgRef.current) {
-        updateTooltipPosition(activeTooltip);
-      }
-    };
-    window.addEventListener('scroll', handleUpdate, { passive: true, capture: true });
-    window.addEventListener('resize', handleUpdate, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleUpdate, { capture: true });
-      window.removeEventListener('resize', handleUpdate);
-    };
-  }, [activeTooltip, updateTooltipPosition]);
 
   useEffect(() => {
-    return () => {
-      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    const checkDesktop = () => {
+      setIsDesktop(typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
     };
+    checkDesktop();
+    window.addEventListener('resize', checkDesktop, { passive: true });
+    return () => window.removeEventListener('resize', checkDesktop);
   }, []);
 
   // Detect accessibility motion preferences
@@ -1076,28 +1091,27 @@ export const InvestigationWorkflowGraph = ({
     return () => clearInterval(t);
   }, []);
 
-  // Keyboard: 1-5 to select agents, Esc to close drawer/panel
+  // Keyboard: 1-5 to select agents, Esc to close drawer/panel (NEVER scrolls)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.key === 'Escape') {
         if (activeReportKey) {
           setActiveReportKey(null);
-        } else if (isDetailPanelOpen) {
-          setIsDetailPanelOpen(false);
+        } else if (isRightPanelOpen) {
+          setIsRightPanelOpen(false);
         }
       }
       if (['1', '2', '3', '4', '5'].includes(e.key)) {
         const idx = parseInt(e.key, 10) - 1;
         if (timelineStages[idx]) {
-          setSelectedStageKey(timelineStages[idx].key);
-          setIsDetailPanelOpen(true);
+          handleSelectAgent(timelineStages[idx].key);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeReportKey, isDetailPanelOpen, timelineStages]);
+  }, [activeReportKey, isRightPanelOpen, timelineStages, handleSelectAgent]);
 
   // Enrich stages with insight data + layout geometry
   const enrichedStages = useMemo(() => {
@@ -1112,6 +1126,15 @@ export const InvestigationWorkflowGraph = ({
   const selectedStage = useMemo(() => {
     return enrichedStages.find(s => s.key === selectedStageKey) || enrichedStages[0];
   }, [enrichedStages, selectedStageKey]);
+
+  // Dynamic vertical offset for right-side information panel alongside the selected node on desktop
+  // Keeps the panel in proximity to the active node while ensuring ample room for complete content
+  const rightPanelTopOffset = useMemo(() => {
+    if (!selectedStage || !selectedStage.layout) return 10;
+    const cy = selectedStage.layout.cy;
+    // Map cy (80 to 620) gently into an offset range of 10px to 80px
+    return Math.max(10, Math.min(80, Math.round(cy * 0.12)));
+  }, [selectedStage]);
 
   // Telemetry counts
   const completedCount = timelineStages.filter(s => s.status === 'COMPLETED').length;
@@ -1199,8 +1222,8 @@ export const InvestigationWorkflowGraph = ({
       ═══════════════════════════════════════════════════════════════════════ */}
       <div className="rounded-b-xl border border-[#1E293B] bg-[#04090F] flex flex-col overflow-hidden">
 
-        {/* ── TOP: ZIG-ZAG WORKFLOW GRAPH CANVAS ────────────────────────────── */}
-        <div ref={containerRef} className="w-full p-5 overflow-x-auto">
+        {/* ── TOP: VERTICAL ZIG-ZAG WORKFLOW + RIGHT-SIDE HOVER DETAIL PANEL ── */}
+        <div ref={containerRef} className="w-full p-4 sm:p-6 overflow-hidden">
 
           {/* Orchestrator Header Chip */}
           <div className="flex items-center justify-between mb-4">
@@ -1236,624 +1259,378 @@ export const InvestigationWorkflowGraph = ({
                 {completedCount}/5 COMPLETE
               </span>
             </div>
+
+            {/* Stage Path Mode Indicator */}
+            <div className="hidden md:flex items-center gap-2 font-mono text-[9px] text-slate-500 uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+              <span>VERTICAL ZIG-ZAG INVESTIGATION PIPELINE</span>
+            </div>
           </div>
 
-          {/* SVG Canvas */}
-          <div className="relative w-full overflow-x-auto">
-            <svg
-              ref={svgRef}
-              viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
-              className="w-full min-w-[640px]"
-              style={{ height: 'auto', aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}
-              aria-label="Investigation workflow graph — 5-agent zig-zag pipeline"
-            >
-              <defs>
-                {/* Glow filters for active nodes */}
-                <filter id="glow-emerald" x="-30%" y="-30%" width="160%" height="160%">
-                  <feGaussianBlur stdDeviation="6" result="blur" />
-                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-                <filter id="glow-sky" x="-30%" y="-30%" width="160%" height="160%">
-                  <feGaussianBlur stdDeviation="6" result="blur" />
-                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
+          {/* Workflow Stage Area: Canvas on Left/Center, Info Panel on Right */}
+          <div className="w-full flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 xl:gap-8 py-2">
+            
+            {/* Left Column: Vertical Zig-Zag SVG Canvas */}
+            <div className="relative w-full max-w-[420px] sm:max-w-[450px] shrink-0 flex justify-center">
+              <svg
+                ref={svgRef}
+                viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
+                className="w-full h-auto"
+                style={{ aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}
+                aria-label="Investigation workflow graph — 5-agent vertical zig-zag pipeline"
+              >
+                <defs>
+                  {/* Glow filters for active nodes */}
+                  <filter id="glow-emerald" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="6" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                  <filter id="glow-sky" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="6" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
 
-                {/* Gradient fills for connectors */}
-                <linearGradient id="seg-completed" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%"   stopColor="#10B981" />
-                  <stop offset="100%" stopColor="#06B6D4" />
-                </linearGradient>
-                <linearGradient id="seg-active" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%"   stopColor="#38BDF8" />
-                  <stop offset="50%"  stopColor="#818CF8" />
-                  <stop offset="100%" stopColor="#38BDF8" />
-                </linearGradient>
+                  {/* Gradient fills for connectors */}
+                  <linearGradient id="seg-completed" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%"   stopColor="#10B981" />
+                    <stop offset="100%" stopColor="#06B6D4" />
+                  </linearGradient>
+                  <linearGradient id="seg-active" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%"   stopColor="#38BDF8" />
+                    <stop offset="50%"  stopColor="#818CF8" />
+                    <stop offset="100%" stopColor="#38BDF8" />
+                  </linearGradient>
 
-                {/* Arrow markers */}
-                <marker id="arr-comp" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-                  <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#10B981" />
-                </marker>
-                <marker id="arr-act" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-                  <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#38BDF8" />
-                </marker>
-                <marker id="arr-pend" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-                  <path d="M 0 2 L 6 5 L 0 8 z" fill="#334155" />
-                </marker>
-              </defs>
+                  {/* Arrow markers */}
+                  <marker id="arr-comp" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                    <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#10B981" />
+                  </marker>
+                  <marker id="arr-act" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                    <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#38BDF8" />
+                  </marker>
+                  <marker id="arr-pend" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                    <path d="M 0 2 L 6 5 L 0 8 z" fill="#334155" />
+                  </marker>
+                </defs>
 
-              {/* ── BACKBONE STRAIGHT CONNECTORS ─────────────────────────── */}
-              {SEGMENTS.map((seg, i) => {
-                const state = segmentStates[i];
-                const stroke = state === 'completed' ? 'url(#seg-completed)' : state === 'active' ? 'url(#seg-active)' : '#1E293B';
-                const marker = state === 'completed' ? 'url(#arr-comp)' : state === 'active' ? 'url(#arr-act)' : 'url(#arr-pend)';
-                const anim = !prefersReducedMotion && state !== 'pending';
-                return (
-                  <g key={i}>
-                    {/* Shadow track */}
-                    <line x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2}
-                      stroke="#0A1628" strokeWidth="5" strokeLinecap="round" />
-                    {/* Animated foreground */}
-                    <line x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2}
-                      stroke={stroke}
-                      strokeWidth={state === 'active' ? 2.5 : 2}
-                      strokeLinecap="round"
-                      strokeDasharray={state === 'pending' ? '5 7' : '9 15'}
-                      markerEnd={marker}
-                      style={anim ? { animation: 'flowDash 1.2s linear infinite' } : undefined}
-                    />
-                    {/* Flow state label */}
-                    <text
-                      x={(seg.x1 + seg.x2) / 2}
-                      y={(seg.y1 + seg.y2) / 2 - 8}
-                      textAnchor="middle"
-                      fontSize="7"
-                      fontFamily="monospace"
-                      fontWeight="bold"
-                      fill={state === 'completed' ? '#10B981' : state === 'active' ? '#38BDF8' : '#334155'}
-                      opacity="0.85"
-                    >
-                      {state === 'completed' ? '✓' : state === 'active' ? '▶' : '○'}
-                    </text>
-                  </g>
-                );
-              })}
+                {/* ── BACKBONE ZIG-ZAG CONNECTORS ─────────────────────────── */}
+                {SEGMENTS.map((seg, i) => {
+                  const state = segmentStates[i];
+                  const stroke = state === 'completed' ? 'url(#seg-completed)' : state === 'active' ? 'url(#seg-active)' : '#1E293B';
+                  const marker = state === 'completed' ? 'url(#arr-comp)' : state === 'active' ? 'url(#arr-act)' : 'url(#arr-pend)';
+                  const anim = !prefersReducedMotion && state !== 'pending';
+                  const midX = (seg.x1 + seg.x2) / 2;
+                  const midY = (seg.y1 + seg.y2) / 2;
 
-              {/* ── AGENT NODES ──────────────────────────────────────────── */}
-              {enrichedStages.map((stage, idx) => {
-                const { cx, cy, row } = stage.layout;
-                const sc = statusColor(stage.status);
-                const isSelected = selectedStageKey === stage.key;
-                const isHovered  = hoveredStageKey === stage.key;
-                const isRunning  = stage.status === 'RUNNING';
-                const isComplete = stage.status === 'COMPLETED';
-                const active     = isSelected || isHovered;
+                  return (
+                    <g key={i}>
+                      {/* Shadow track */}
+                      <line
+                        x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2}
+                        stroke="#0A1628" strokeWidth="6" strokeLinecap="round"
+                      />
+                      {/* Animated foreground path */}
+                      <line
+                        x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2}
+                        stroke={stroke}
+                        strokeWidth={state === 'active' ? 2.5 : 2}
+                        strokeLinecap="round"
+                        strokeDasharray={state === 'pending' ? '5 7' : '9 15'}
+                        markerEnd={marker}
+                        style={anim ? { animation: 'flowDash 1.2s linear infinite' } : undefined}
+                      />
+                      {/* Midpoint flow status badge */}
+                      <circle
+                        cx={midX}
+                        cy={midY}
+                        r="7"
+                        fill="#060D1A"
+                        stroke={state === 'completed' ? '#10B981' : state === 'active' ? '#38BDF8' : '#334155'}
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={midX}
+                        y={midY + 2.5}
+                        textAnchor="middle"
+                        fontSize="7"
+                        fontFamily="monospace"
+                        fontWeight="bold"
+                        fill={state === 'completed' ? '#10B981' : state === 'active' ? '#38BDF8' : '#64748B'}
+                      >
+                        {state === 'completed' ? '✓' : state === 'active' ? '▶' : '○'}
+                      </text>
+                    </g>
+                  );
+                })}
 
-                return (
-                  <g
-                    key={stage.key}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${stage.fullName} — Status: ${stage.status}. Click or press Enter to inspect agent detail panel below.`}
-                    style={{ cursor: 'pointer', outline: 'none' }}
-                    onClick={() => {
-                      setSelectedStageKey(stage.key);
-                      setIsDetailPanelOpen(true);
-                    }}
-                    onMouseEnter={() => handleNodeMouseEnter(stage)}
-                    onMouseLeave={handleNodeMouseLeave}
-                    onFocus={() => handleNodeMouseEnter(stage)}
-                    onBlur={handleNodeMouseLeave}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setSelectedStageKey(stage.key);
-                        setIsDetailPanelOpen(true);
-                      }
-                    }}
-                  >
-                    {/* Vertical guide beam projecting down to the attached panel */}
-                    {isSelected && (
-                      <g>
-                        <line
-                          x1={cx}
-                          y1={cy + NODE_R + 4}
-                          x2={cx}
-                          y2={CANVAS_H}
-                          stroke={sc.ring}
-                          strokeWidth="2"
-                          strokeDasharray="4 4"
-                          opacity="0.85"
-                          style={!prefersReducedMotion ? { animation: 'flowDash 1.2s linear infinite' } : undefined}
-                        />
-                        {/* Downward beacon chevron at the canvas baseline */}
-                        <polygon
-                          points={`${cx - 5},${CANVAS_H - 8} ${cx + 5},${CANVAS_H - 8} ${cx},${CANVAS_H - 1}`}
-                          fill={sc.ring}
-                          opacity="0.9"
-                        />
-                      </g>
-                    )}
-
-                    {/* Pulsing outer ring for running state */}
-                    {isRunning && !prefersReducedMotion && (
-                      <circle cx={cx} cy={cy} r={NODE_R + 10}
-                        fill="none"
+                {/* ── LASER DASHER GUIDE BEAM FROM SELECTED NODE TO RIGHT PANEL ── */}
+                {isRightPanelOpen && selectedStage && selectedStage.layout && (() => {
+                  const targetLayout = selectedStage.layout;
+                  const sc = statusColor(selectedStage.status);
+                  return (
+                    <g>
+                      <line
+                        x1={targetLayout.cx + NODE_R + 4}
+                        y1={targetLayout.cy}
+                        x2={CANVAS_W}
+                        y2={targetLayout.cy}
                         stroke={sc.ring}
                         strokeWidth="1.5"
-                        opacity="0.3"
-                        style={{ animation: 'nodeRingPulse 2s ease-in-out infinite' }}
+                        strokeDasharray="4 4"
+                        opacity="0.65"
+                        style={!prefersReducedMotion ? { animation: 'flowDash 1.2s linear infinite' } : undefined}
                       />
-                    )}
+                      <circle cx={CANVAS_W - 4} cy={targetLayout.cy} r="3" fill={sc.ring} opacity="0.9" />
+                    </g>
+                  );
+                })()}
 
-                    {/* Illuminated active halo ring */}
-                    {isSelected && (
-                      <circle cx={cx} cy={cy} r={NODE_R + 8}
-                        fill="none"
-                        stroke={sc.ring}
-                        strokeWidth="2.5"
-                        opacity="0.9"
-                        filter={sc.ring.includes('10B981') ? 'url(#glow-emerald)' : 'url(#glow-sky)'}
-                      />
-                    )}
+                {/* ── AGENT NODES IN VERTICAL ZIG-ZAG ─────────────────────────── */}
+                {enrichedStages.map((stage) => {
+                  const { cx, cy } = stage.layout;
+                  const sc = statusColor(stage.status);
+                  const isSelected = selectedStageKey === stage.key;
+                  const isHovered  = hoveredNodeKey === stage.key;
+                  const isRunning  = stage.status === 'RUNNING';
+                  const isComplete = stage.status === 'COMPLETED';
 
-                    {/* Node circle */}
-                    <circle cx={cx} cy={cy} r={NODE_R}
-                      fill={isSelected ? '#0B1728' : '#060D1A'}
-                      stroke={isSelected ? sc.ring : active ? sc.ring : sc.ring + '66'}
-                      strokeWidth={isSelected ? 3.5 : active ? 2.5 : 1.5}
-                      style={{ transition: 'stroke 200ms, fill 200ms, stroke-width 200ms' }}
-                    />
-
-                    {/* Node number label */}
-                    <text
-                      x={cx} y={cy - 10}
-                      textAnchor="middle"
-                      fontSize="11"
-                      fontFamily="monospace"
-                      fontWeight="900"
-                      fill={active ? sc.text : sc.text + 'AA'}
+                  return (
+                    <g
+                      key={stage.key}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${stage.fullName} — Status: ${stage.status}. Click or press Enter to inspect agent.`}
+                      style={{ cursor: 'pointer', outline: 'none' }}
+                      onClick={() => handleSelectAgent(stage.key)}
+                      onMouseEnter={() => setHoveredNodeKey(stage.key)}
+                      onMouseLeave={() => setHoveredNodeKey(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleSelectAgent(stage.key);
+                        }
+                      }}
                     >
-                      {stage.index}
-                    </text>
+                      {/* Pulsing outer ring for running state */}
+                      {isRunning && !prefersReducedMotion && (
+                        <circle cx={cx} cy={cy} r={NODE_R + 10}
+                          fill="none"
+                          stroke={sc.ring}
+                          strokeWidth="1.5"
+                          opacity="0.3"
+                          style={{ animation: 'nodeRingPulse 2s ease-in-out infinite' }}
+                        />
+                      )}
 
-                    {/* Status text */}
-                    <text
-                      x={cx} y={cy + 6}
-                      textAnchor="middle"
-                      fontSize="9"
-                      fontFamily="monospace"
-                      fontWeight="600"
-                      fill={active ? sc.text : sc.text + '99'}
-                    >
-                      {stage.shortName.slice(0, 5)}
-                    </text>
+                      {/* Illuminated active / hover halo ring */}
+                      {(isSelected || isHovered) && (
+                        <circle cx={cx} cy={cy} r={NODE_R + 8}
+                          fill="none"
+                          stroke={sc.ring}
+                          strokeWidth={isSelected ? 2.5 : 1.5}
+                          opacity={isSelected ? 0.9 : 0.5}
+                          filter={sc.ring.includes('10B981') ? 'url(#glow-emerald)' : 'url(#glow-sky)'}
+                        />
+                      )}
 
-                    {/* Status visual */}
-                    {isComplete && (
-                      <g>
-                        <circle cx={cx + NODE_R - 6} cy={cy - NODE_R + 6} r="8" fill="#10B981" stroke="#060D1A" strokeWidth="2" />
-                        <text x={cx + NODE_R - 6} y={cy - NODE_R + 10} textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">✓</text>
-                      </g>
-                    )}
-                    {isRunning && (
-                      <circle cx={cx + NODE_R - 6} cy={cy - NODE_R + 6} r="6"
-                        fill="#38BDF8" stroke="#060D1A" strokeWidth="2"
-                        style={!prefersReducedMotion ? { animation: 'nodeRingPulse 1s ease-in-out infinite' } : undefined}
+                      {/* Main Node circle */}
+                      <circle cx={cx} cy={cy} r={NODE_R}
+                        fill={isSelected ? '#0B1728' : isHovered ? '#091526' : '#060D1A'}
+                        stroke={isSelected ? sc.ring : isHovered ? sc.ring : sc.ring + '66'}
+                        strokeWidth={isSelected ? 3.5 : isHovered ? 2.5 : 1.5}
+                        style={{ transition: 'stroke 200ms, fill 200ms, stroke-width 200ms' }}
                       />
-                    )}
-                    {stage.status === 'FAILED' && (
-                      <g>
-                        <circle cx={cx + NODE_R - 6} cy={cy - NODE_R + 6} r="7" fill="#F43F5E" stroke="#060D1A" strokeWidth="2" />
-                        <text x={cx + NODE_R - 6} y={cy - NODE_R + 10} textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">!</text>
-                      </g>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
+
+                      {/* Node number label */}
+                      <text
+                        x={cx} y={cy - 10}
+                        textAnchor="middle"
+                        fontSize="11"
+                        fontFamily="monospace"
+                        fontWeight="900"
+                        fill={isSelected || isHovered ? sc.text : sc.text + 'AA'}
+                      >
+                        {stage.index}
+                      </text>
+
+                      {/* Status / Short name text */}
+                      <text
+                        x={cx} y={cy + 6}
+                        textAnchor="middle"
+                        fontSize="9"
+                        fontFamily="monospace"
+                        fontWeight="600"
+                        fill={isSelected || isHovered ? sc.text : sc.text + '99'}
+                      >
+                        {stage.shortName.slice(0, 5)}
+                      </text>
+
+                      {/* Outer agent title label below circle */}
+                      <text
+                        x={cx} y={cy + 48}
+                        textAnchor="middle"
+                        fontSize="9.5"
+                        fontFamily="monospace"
+                        fontWeight="bold"
+                        fill={isSelected || isHovered ? '#38BDF8' : '#94A3B8'}
+                        letterSpacing="0.04em"
+                      >
+                        {stage.fullName.split(' ')[0].toUpperCase()}
+                      </text>
+                      <text
+                        x={cx} y={cy + 60}
+                        textAnchor="middle"
+                        fontSize="7.5"
+                        fontFamily="monospace"
+                        fill="#64748B"
+                      >
+                        {stage.metricTag || stage.domain.split(' ')[0]}
+                      </text>
+
+                      {/* Completion checkmark badge */}
+                      {isComplete && (
+                        <g>
+                          <circle cx={cx + NODE_R - 6} cy={cy - NODE_R + 6} r="8" fill="#10B981" stroke="#060D1A" strokeWidth="2" />
+                          <text x={cx + NODE_R - 6} y={cy - NODE_R + 10} textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">✓</text>
+                        </g>
+                      )}
+                      {/* Running pulse badge */}
+                      {isRunning && (
+                        <circle cx={cx + NODE_R - 6} cy={cy - NODE_R + 6} r="6"
+                          fill="#38BDF8" stroke="#060D1A" strokeWidth="2"
+                          style={!prefersReducedMotion ? { animation: 'nodeRingPulse 1s ease-in-out infinite' } : undefined}
+                        />
+                      )}
+                      {/* Failed badge */}
+                      {stage.status === 'FAILED' && (
+                        <g>
+                          <circle cx={cx + NODE_R - 6} cy={cy - NODE_R + 6} r="7" fill="#F43F5E" stroke="#060D1A" strokeWidth="2" />
+                          <text x={cx + NODE_R - 6} y={cy - NODE_R + 10} textAnchor="middle" fontSize="9" fill="white" fontWeight="bold">!</text>
+                        </g>
+                      )}
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+
+            {/* Right Column: Persistent Click-to-Open Agent Detail Panel */}
+            <div className="w-full max-w-[460px] lg:max-w-[490px] xl:max-w-[520px] shrink-0 relative lg:min-h-[680px] lg:h-[680px] flex flex-col justify-start">
+              {/* Resting Guide Box on Desktop (visible when right panel is closed) */}
+              <div
+                className={twMerge(
+                  "w-full h-full min-h-[380px] rounded-2xl border border-dashed border-[#1E293B]/70 bg-[#060D1A]/40 flex flex-col items-center justify-center p-6 text-center transition-all duration-300",
+                  isRightPanelOpen ? "opacity-0 pointer-events-none scale-95" : "opacity-100 scale-100"
+                )}
+              >
+                <div className="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 mb-3 shadow-[0_0_15px_rgba(56,189,248,0.1)]">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div className="font-mono text-xs font-black text-slate-200 uppercase tracking-wider mb-1">
+                  AGENT INFORMATION PANEL
+                </div>
+                <p className="text-xs font-sans text-slate-400 max-w-[320px] leading-relaxed mb-4">
+                  Click any agent node in the workflow to inspect complete forensic findings, telemetry, and evidence verification.
+                </p>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#081122] border border-[#1E293B] text-[9px] font-mono text-slate-300 uppercase tracking-wider">
+                  <span>PRESS 1–5 OR CLICK NODE TO OPEN</span>
+                </div>
+              </div>
+
+              {/* Persistent Agent Detail Card on the Right */}
+              <AgentRightDetailPanel
+                stage={selectedStage}
+                isOpen={isRightPanelOpen}
+                topOffset={rightPanelTopOffset}
+                isDesktop={isDesktop}
+                onClose={() => setIsRightPanelOpen(false)}
+                onViewReport={() => setActiveReportKey(selectedStage.key)}
+                prefersReducedMotion={prefersReducedMotion}
+              />
+            </div>
           </div>
 
           {/* ── KEYBOARD SHORTCUT HINTS ── */}
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-3 font-mono text-[8.5px] text-slate-600 uppercase tracking-wider border-t border-[#1E293B]/60 pt-2">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 font-mono text-[8.5px] text-slate-600 uppercase tracking-wider border-t border-[#1E293B]/60 pt-3">
             <div className="flex items-center gap-3">
-              <span>HOVER NODE → PREVIEW</span>
+              <span>CLICK NODE → OPEN AGENT INFO PANEL</span>
               <span>·</span>
-              <span>CLICK NODE → AGENT DETAIL PANEL BELOW</span>
+              <span>1–5 → SELECT & SWITCH AGENT</span>
               <span>·</span>
-              <span>1–5 → SWITCH AGENT</span>
-              <span>·</span>
-              <span>ESC → CLOSE</span>
+              <span>ESC / ✕ → CLOSE PANEL</span>
             </div>
-            {isDetailPanelOpen && selectedStage && (
+            {isRightPanelOpen && selectedStage && (
               <span className="text-sky-400/90 font-bold">
-                STAGE {selectedStage.index} ACTIVE BELOW ↓
+                STAGE {selectedStage.index} ACTIVE · {selectedStage.fullName.toUpperCase()}
               </span>
             )}
           </div>
         </div>
 
-        {/* ── BOTTOM: HYBRID AGENT DETAIL ANCHORED PANEL OR PIPELINE OVERVIEW ── */}
-        <div className="w-full border-t border-[#1E293B] bg-[#04090F] flex flex-col relative transition-all duration-300">
-          {isDetailPanelOpen && selectedStage ? (
-            /* VIEW A: AGENT DETAIL PANEL (SPATIALLY ANCHORED BELOW SELECTED NODE) */
-            <div className="w-full flex flex-col pt-2 pb-6 px-4 sm:px-6 relative">
-              {/* Dynamic Anchor Stem pointing from Canvas Beam down to the Detail Card */}
-              <div className="w-full relative h-3 pointer-events-none mb-[-1px] z-10">
-                <div 
-                  className="absolute top-0 w-3.5 h-3.5 rotate-45 border-t border-l transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
-                  style={{
-                    left: `calc(${STAGE_ANCHOR_PCT[selectedStage.key] || 50}% - 7px)`,
-                    backgroundColor: '#060D1A',
-                    borderColor: statusColor(selectedStage.status).ring,
-                    boxShadow: `0 0 12px ${statusColor(selectedStage.status).glow}`,
-                  }}
-                />
+        {/* ── BOTTOM: PIPELINE OVERVIEW BAR ── */}
+        <div className="w-full border-t border-[#1E293B] bg-[#04090F] flex flex-col relative">
+          <div className="w-full px-5 py-3.5 bg-[#060C18] flex flex-wrap items-center justify-between gap-4">
+            {/* Left: Overall pipeline metrics */}
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-sky-400" />
+                <span className="font-mono text-xs font-black text-slate-200 uppercase tracking-wider">Pipeline Overview</span>
               </div>
+              <div className="h-4 w-[1px] bg-[#1E293B] hidden sm:block" />
+              <div className="flex items-center gap-3 font-mono text-[10px]">
+                <span className="text-slate-500 uppercase">STATUS:</span>
+                <span className="font-bold" style={{ color: isAllComplete ? '#10B981' : runningCount > 0 ? '#38BDF8' : '#64748B' }}>
+                  {isAllComplete ? 'COMPLETE' : runningCount > 0 ? 'EXECUTING' : 'STANDBY'}
+                </span>
+                <span className="text-slate-600">|</span>
+                <span className="text-slate-500 uppercase">STAGES:</span>
+                <span className="text-slate-200 font-bold">{completedCount} / 5</span>
+                <span className="text-slate-600">|</span>
+                <span className="text-slate-500 uppercase">ELAPSED:</span>
+                <span className="text-slate-300 font-bold">{fmtTime(elapsedSec)}</span>
+                <span className="text-slate-600">|</span>
+                <span className="text-slate-500 uppercase">CONFIDENCE:</span>
+                <span className="font-bold" style={{ color: confidencePct >= 90 ? '#10B981' : confidencePct >= 70 ? '#FCD34D' : '#64748B' }}>
+                  {isAllComplete ? `${confidencePct}%` : '—'}
+                </span>
+              </div>
+            </div>
 
-              {/* Edge-Aware Card Container */}
-              <div className={twMerge(
-                "w-full max-w-[860px] transition-all duration-300",
-                getContainerAlignment(selectedStage.key)
-              )}>
-                <div 
-                  key={selectedStage.key}
-                  className="w-full rounded-2xl border bg-[#060D1A]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.65)] overflow-hidden animate-detailSlide"
-                  style={{
-                    borderColor: statusColor(selectedStage.status).ring + '60',
-                    boxShadow: `0 12px 36px rgba(0,0,0,0.6), 0 0 24px ${statusColor(selectedStage.status).glow}`,
-                  }}
-                >
-                  {/* Panel Header */}
-                  <div className="px-5 py-3 border-b border-[#1E293B] bg-[#081020]/90 backdrop-blur-sm flex flex-wrap items-center justify-between gap-3">
-                    {/* Left: Agent Identification */}
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div 
-                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border"
-                        style={{ 
-                          backgroundColor: statusColor(selectedStage.status).bg, 
-                          borderColor: statusColor(selectedStage.status).ring + '66' 
-                        }}
-                      >
-                        {React.createElement(selectedStage.Icon || Shield, {
-                          className: "w-4 h-4",
-                          style: { color: statusColor(selectedStage.status).text }
-                        })}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span 
-                            className="text-[9.5px] font-mono font-black uppercase px-2 py-0.5 rounded border"
-                            style={{
-                              backgroundColor: statusColor(selectedStage.status).bg,
-                              borderColor: statusColor(selectedStage.status).ring + '44',
-                              color: statusColor(selectedStage.status).text
-                            }}
-                          >
-                            STAGE {selectedStage.index}
-                          </span>
-                          <span className="text-xs font-mono font-black text-slate-100 uppercase tracking-tight truncate">
-                            {selectedStage.fullName}
-                          </span>
-                        </div>
-                        <div className="text-[9.5px] font-mono text-slate-400 truncate mt-0.5">
-                          {selectedStage.domain}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right: Stage Switcher Pills + Status + Close */}
-                    <div className="flex items-center gap-2.5">
-                      {/* 1–5 Quick Selector Bar */}
-                      <div className="hidden sm:flex items-center gap-1 bg-[#080F1E] p-1 rounded-lg border border-[#1E293B]">
-                        {enrichedStages.map((s) => {
-                          const isCurrent = s.key === selectedStage.key;
-                          const sc = statusColor(s.status);
-                          return (
-                            <button
-                              key={s.key}
-                              type="button"
-                              onClick={() => setSelectedStageKey(s.key)}
-                              className={twMerge(
-                                "px-2 py-1 rounded text-center transition-all cursor-pointer font-mono text-[9px] font-bold uppercase flex items-center gap-1",
-                                isCurrent 
-                                  ? "bg-sky-500/20 border border-sky-400 text-sky-200 shadow-[0_0_8px_rgba(56,189,248,0.2)]"
-                                  : "text-slate-400 hover:text-slate-200 hover:bg-[#0E1726]"
-                              )}
-                              title={`${s.index} · ${s.fullName}`}
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: sc.ring }} />
-                              <span>{s.index}</span>
-                              <span className="hidden md:inline text-[8px] text-slate-400">{s.shortName.slice(0, 4)}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Status indicator */}
-                      <span 
-                        className="text-[8.5px] font-mono font-bold uppercase px-2.5 py-1 rounded-full border flex items-center gap-1.5"
-                        style={{
-                          backgroundColor: statusColor(selectedStage.status).bg,
-                          borderColor: statusColor(selectedStage.status).ring + '55',
-                          color: statusColor(selectedStage.status).text
-                        }}
-                      >
-                        {selectedStage.status === 'RUNNING' && (
-                          <span className={twMerge("w-1.5 h-1.5 rounded-full bg-sky-400", !prefersReducedMotion && "animate-pulse")} />
-                        )}
-                        {selectedStage.status === 'COMPLETED' && <Check className="w-3 h-3" />}
-                        {selectedStage.status === 'FAILED' && <AlertTriangle className="w-3 h-3 text-rose-400" />}
-                        {selectedStage.status}
-                      </span>
-
-                      {/* Close Button */}
-                      <button
-                        type="button"
-                        onClick={() => setIsDetailPanelOpen(false)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-[#1E293B] transition-colors cursor-pointer"
-                        title="Close agent detail panel (Esc)"
-                        aria-label="Close agent detail panel"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Main Content Grid: 12 Columns */}
-                  <div className="p-5 select-text space-y-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                      
-                      {/* 1. Primary Forensic Finding (Column 1 - 4 cols) */}
-                      <div 
-                        className="lg:col-span-4 rounded-xl p-4 border relative overflow-hidden bg-[#070E1C] flex flex-col justify-between"
-                        style={{
-                          borderColor: statusColor(selectedStage.status).ring + '40',
-                        }}
-                      >
-                        <div 
-                          className="absolute top-0 left-0 bottom-0 w-1.5"
-                          style={{ backgroundColor: statusColor(selectedStage.status).ring }}
-                        />
-                        <div>
-                          <div className="flex items-center justify-between mb-2 pl-2">
-                            <span className="text-[8.5px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                              PRIMARY FORENSIC FINDING
-                            </span>
-                            <span className="text-[8px] font-mono text-slate-500 uppercase">
-                              AGENT {selectedStage.index} OF 05
-                            </span>
-                          </div>
-                          <p className="text-[12.5px] text-slate-100 leading-relaxed pl-2 font-sans font-medium">
-                            {selectedStage.insight.primaryFinding}
-                          </p>
-                        </div>
-
-                        <div className="mt-4 pl-2 pt-2 border-t border-[#1E293B]/60 flex items-center justify-between text-[8px] font-mono text-slate-500 uppercase">
-                          <span>ORIGIN: REAL AGENT TELEMETRY</span>
-                          <span style={{ color: statusColor(selectedStage.status).text }}>
-                            VERIFIED OUTPUT
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* 2. 2x2 Metric Chips Grid (Column 2 - 4 cols) */}
-                      <div className="lg:col-span-4 flex flex-col justify-between">
-                        <div className="text-[8.5px] font-mono text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
-                          <span>FORENSIC TELEMETRY METRICS</span>
-                          <span className="text-[8px] text-slate-500 font-mono">DETERMINISTIC</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2.5 flex-1">
-                          {selectedStage.insight.items.map((it, idx) => (
-                            <div 
-                              key={idx}
-                              className="p-3 rounded-xl bg-[#081122] border border-[#1E293B]/80 hover:border-slate-700 transition-colors flex flex-col justify-between"
-                            >
-                              <span className="text-[8.5px] font-mono text-slate-400 uppercase tracking-wider truncate mb-1">
-                                {it.label}
-                              </span>
-                              <span 
-                                className="text-base font-mono font-black tracking-tight"
-                                style={{
-                                  color: it.alert ? '#F43F5E' : it.warn ? '#FCD34D' : it.success ? '#10B981' : '#E2E8F0'
-                                }}
-                              >
-                                {safeFormatValue(it.value, it.label)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 3. Key Forensic Insights (Column 3 - 4 cols) */}
-                      <div className="lg:col-span-4 flex flex-col justify-between">
-                        <div className="text-[8.5px] font-mono text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <Info className="w-3.5 h-3.5 text-sky-400" />
-                            <span>KEY FORENSIC INSIGHTS</span>
-                          </div>
-                          <span className="text-[8px] text-slate-500 font-mono">
-                            {selectedStage.insight.insights?.length || 0} VERIFIED
-                          </span>
-                        </div>
-                        <div className="rounded-xl bg-[#081122] border border-[#1E293B]/80 p-3 space-y-2 flex-1 flex flex-col justify-between">
-                          {selectedStage.insight.insights && selectedStage.insight.insights.map((ins, idx) => (
-                            <div key={idx} className="p-2 rounded-lg bg-[#060D1A]/90 border border-[#1E293B]/60 space-y-1">
-                              <div className="flex items-center justify-between gap-1.5">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <span 
-                                    className="w-1.5 h-1.5 rounded-full shrink-0" 
-                                    style={{ backgroundColor: statusColor(selectedStage.status).ring }} 
-                                  />
-                                  <span className="text-[10px] font-mono font-bold text-slate-200 uppercase truncate">
-                                    {ins.title}
-                                  </span>
-                                </div>
-                                {ins.id && (
-                                  <span className="text-[8px] font-mono px-1.5 py-0.2 rounded bg-[#0A1426] border border-[#1E293B] text-sky-300 shrink-0 font-semibold">
-                                    {ins.id}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-slate-300 font-sans leading-snug pl-3">
-                                {ins.description}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                    </div>
-
-                    {/* Progressive Disclosure: Additional Forensic Traceability Accordion */}
-                    {selectedStage.insight.additionalDetails && selectedStage.insight.additionalDetails.length > 0 && (
-                      <div className="border border-[#1E293B]/80 rounded-xl bg-[#070D1A] overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => setShowAdditionalDetails(!showAdditionalDetails)}
-                          className="w-full px-4 py-2.5 bg-[#081122] hover:bg-[#0C1930] transition-colors flex items-center justify-between text-left font-mono text-[9px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
-                            <GitCommit className="w-3.5 h-3.5 text-sky-400" />
-                            <span>ADDITIONAL FORENSIC TRACEABILITY & SECONDARY FINDINGS</span>
-                            <span className="px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-300 border border-sky-500/30 text-[8px]">
-                              {selectedStage.insight.additionalDetails.length} RECORDS
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 text-[8.5px] text-slate-500">
-                            <span>{showAdditionalDetails ? 'COLLAPSE' : 'EXPAND'}</span>
-                            <ChevronDown className={twMerge("w-3.5 h-3.5 transition-transform duration-200", showAdditionalDetails && "rotate-180")} />
-                          </div>
-                        </button>
-
-                        {showAdditionalDetails && (
-                          <div className="p-4 border-t border-[#1E293B]/60 space-y-2 max-h-[260px] overflow-y-auto">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {selectedStage.insight.additionalDetails.map((det, dIdx) => (
-                                <div key={dIdx} className="p-2.5 rounded-lg bg-[#050A14] border border-[#1E293B]/70 flex flex-col justify-between gap-1">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-tight truncate">
-                                      {det.label}
-                                    </span>
-                                    {det.id && (
-                                      <span className="text-[8px] font-mono px-1.5 py-0.2 rounded bg-[#081020] border border-[#1E293B] text-slate-400 shrink-0">
-                                        {det.id}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-[11px] font-sans text-slate-200 leading-snug">
-                                    {safeFormatValue(det.value, det.label)}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+            {/* Middle: 5 clickable stages (never scrolls, opens right-side panel) */}
+            <div className="hidden lg:flex items-center gap-1.5">
+              {enrichedStages.map((stage) => {
+                const sc = statusColor(stage.status);
+                return (
+                  <button
+                    key={stage.key}
+                    type="button"
+                    onClick={() => handleSelectAgent(stage.key)}
+                    className={twMerge(
+                      'flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[9px] font-mono font-bold uppercase transition-all cursor-pointer',
+                      selectedStageKey === stage.key && isRightPanelOpen
+                        ? 'bg-sky-500/15 border-sky-400 text-sky-200 shadow-[0_0_8px_rgba(56,189,248,0.2)]'
+                        : 'bg-[#080F1C] border-[#1E293B] text-slate-400 hover:text-slate-200 hover:border-slate-600'
                     )}
-                  </div>
-
-                  {/* Panel Action Footer */}
-                  <div className="px-5 py-3 border-t border-[#1E293B] bg-[#060C18] flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 font-mono text-[9px] text-slate-500 uppercase">
-                      <span>ACTIVE AGENT: <strong className="text-slate-300">{selectedStage.fullName}</strong></span>
-                      <span>·</span>
-                      <span>PRESS 1–5 TO SWITCH AGENTS</span>
-                      <span>·</span>
-                      <span>ESC TO CLOSE</span>
-                    </div>
-
-                    <div className="flex items-center gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => setIsDetailPanelOpen(false)}
-                        className="py-2 px-3 rounded-lg bg-[#0E1726] hover:bg-[#162338] border border-[#1E293B] text-slate-400 hover:text-slate-200 font-mono text-[9px] font-semibold uppercase tracking-wider transition-colors cursor-pointer"
-                      >
-                        CLOSE DETAIL (ESC)
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveReportKey(selectedStage.key)}
-                        className="py-2 px-4 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 hover:border-sky-400 text-sky-200 font-mono text-[10px] font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-[0_0_12px_rgba(56,189,248,0.15)] group"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-sky-400 group-hover:scale-110 transition-transform" />
-                        VIEW FULL TECHNICAL REPORT
-                        <ArrowRight className="w-3.5 h-3.5 text-sky-400 group-hover:translate-x-0.5 transition-transform" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: sc.ring }} />
+                    <span>{stage.index} · {stage.shortName}</span>
+                    {stage.status === 'COMPLETED' && <Check className="w-2.5 h-2.5 text-emerald-400" />}
+                  </button>
+                );
+              })}
             </div>
-          ) : (
-            /* VIEW B: PIPELINE OVERVIEW PANEL (when detail panel is collapsed) */
-            <div className="w-full px-5 py-3.5 bg-[#060C18] flex flex-wrap items-center justify-between gap-4 animate-fadeIn">
-              {/* Left: Overall pipeline metrics */}
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-sky-400" />
-                  <span className="font-mono text-xs font-black text-slate-200 uppercase tracking-wider">Pipeline Overview</span>
-                </div>
-                <div className="h-4 w-[1px] bg-[#1E293B] hidden sm:block" />
-                <div className="flex items-center gap-3 font-mono text-[10px]">
-                  <span className="text-slate-500 uppercase">STATUS:</span>
-                  <span className="font-bold" style={{ color: isAllComplete ? '#10B981' : runningCount > 0 ? '#38BDF8' : '#64748B' }}>
-                    {isAllComplete ? 'COMPLETE' : runningCount > 0 ? 'EXECUTING' : 'STANDBY'}
-                  </span>
-                  <span className="text-slate-600">|</span>
-                  <span className="text-slate-500 uppercase">STAGES:</span>
-                  <span className="text-slate-200 font-bold">{completedCount} / 5</span>
-                  <span className="text-slate-600">|</span>
-                  <span className="text-slate-500 uppercase">ELAPSED:</span>
-                  <span className="text-slate-300 font-bold">{fmtTime(elapsedSec)}</span>
-                  <span className="text-slate-600">|</span>
-                  <span className="text-slate-500 uppercase">CONFIDENCE:</span>
-                  <span className="font-bold" style={{ color: confidencePct >= 90 ? '#10B981' : confidencePct >= 70 ? '#FCD34D' : '#64748B' }}>
-                    {isAllComplete ? `${confidencePct}%` : '—'}
-                  </span>
-                </div>
-              </div>
 
-              {/* Middle: 5 clickable stages */}
-              <div className="hidden lg:flex items-center gap-1.5">
-                {enrichedStages.map((stage) => {
-                  const sc = statusColor(stage.status);
-                  return (
-                    <button
-                      key={stage.key}
-                      type="button"
-                      onClick={() => {
-                        setSelectedStageKey(stage.key);
-                        setIsDetailPanelOpen(true);
-                      }}
-                      className={twMerge(
-                        'flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[9px] font-mono font-bold uppercase transition-all cursor-pointer',
-                        selectedStageKey === stage.key
-                          ? 'bg-sky-500/15 border-sky-400 text-sky-200'
-                          : 'bg-[#080F1C] border-[#1E293B] text-slate-400 hover:text-slate-200 hover:border-slate-600'
-                      )}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: sc.ring }} />
-                      <span>{stage.index} · {stage.shortName}</span>
-                      {stage.status === 'COMPLETED' && <Check className="w-2.5 h-2.5 text-emerald-400" />}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Right: Open Detail Button */}
-              <button
-                type="button"
-                onClick={() => setIsDetailPanelOpen(true)}
-                className="py-1.5 px-3 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/35 text-sky-300 font-mono text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ml-auto sm:ml-0"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>INSPECT AGENT DETAIL</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-          )}
+            {/* Right: Technical Report Button */}
+            <button
+              type="button"
+              onClick={() => setActiveReportKey(selectedStageKey)}
+              className="py-1.5 px-3 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/35 text-sky-300 font-mono text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ml-auto sm:ml-0"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>TECHNICAL REPORT</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1898,36 +1675,6 @@ export const InvestigationWorkflowGraph = ({
         </div>
       )}
 
-      {/* ── PORTAL FLOATING TOOLTIP (rendered in document.body to prevent clipping) ── */}
-      {typeof document !== 'undefined' && activeTooltip && createPortal(
-        <div
-          role="tooltip"
-          aria-hidden={!isTooltipVisible}
-          className="fixed pointer-events-none z-[9999]"
-          style={{
-            top: `${tooltipPos.top}px`,
-            left: `${tooltipPos.left}px`,
-            width: `${tooltipPos.width || TOOLTIP_WIDTH}px`,
-            maxWidth: 'calc(100vw - 32px)',
-            opacity: isTooltipVisible ? 1 : 0,
-            transform: isTooltipVisible
-              ? 'translateY(0)'
-              : (tooltipPos.placement === 'below' ? 'translateY(-4px)' : 'translateY(4px)'),
-            transition: prefersReducedMotion
-              ? 'none'
-              : 'opacity 160ms cubic-bezier(0.16, 1, 0.3, 1), transform 160ms cubic-bezier(0.16, 1, 0.3, 1)',
-          }}
-        >
-          <AgentTooltipCard
-            stage={activeTooltip}
-            placement={tooltipPos.placement}
-            arrowX={tooltipPos.arrowX}
-            prefersReducedMotion={prefersReducedMotion}
-          />
-        </div>,
-        document.body
-      )}
-
       {/* Embedded keyframe animations */}
       <style>{`
         @keyframes flowDash {
@@ -1956,6 +1703,19 @@ export const InvestigationWorkflowGraph = ({
           to   { opacity: 1; transform: translateY(0);   }
         }
         .animate-fadeIn { animation: fadeIn 250ms ease-out; }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(6, 13, 26, 0.4);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(56, 189, 248, 0.25);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(56, 189, 248, 0.5);
+        }
         @media (prefers-reduced-motion: reduce) {
           * {
             animation-duration: 0.01ms !important;
