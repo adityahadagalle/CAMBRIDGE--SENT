@@ -37,7 +37,7 @@ const MED_RISK_REASONS = [
   'High transaction frequency in 24 hours'
 ];
 
-function generateStreamTransaction(seq) {
+function generateStreamTransaction(seq, isAutomationOn = false) {
   const channel = CHANNELS[seq % CHANNELS.length];
   const sender = USERS[(seq * 3) % USERS.length];
   const receiver = COUNTERPARTIES[(seq * 7 + 2) % COUNTERPARTIES.length];
@@ -65,6 +65,33 @@ function generateStreamTransaction(seq) {
 
   const actionCode = riskScore >= 85 ? 'FREEZE' : riskScore >= 70 ? 'ESCALATE_ANALYST_REVIEW' : riskScore >= 40 ? 'ENHANCED_MONITORING' : 'MONITOR';
 
+  // Zero automatic action execution when Automation is OFF.
+  // When Automation is ON: permitted non-freeze actions execute automatically.
+  const isAutomatedExecution = Boolean(isAutomationOn) && actionCode !== 'FREEZE';
+
+  const executionRecord = isAutomatedExecution ? {
+    action_code: actionCode,
+    execution_status: 'SUCCESS',
+    resulting_account_state: 'ACTIVE',
+    actor_type: 'AUTOMATION_ENGINE',
+    actor_id: 'SENTINEL_AUTOMATION_SERVICE',
+    automation_mode: 'AUTOMATE_ON'
+  } : {
+    action_code: actionCode,
+    execution_status: actionCode === 'FREEZE' ? 'REQUIRES_OPERATOR_ACTION' : 'NOT_EXECUTED',
+    resulting_account_state: 'ACTIVE',
+    actor_type: null,
+    actor_id: null,
+    automation_mode: isAutomationOn ? 'AUTOMATE_ON' : 'AUTOMATE_OFF'
+  };
+
+  const responseDecision = {
+    action: actionCode,
+    action_status: isAutomatedExecution ? 'SUCCESS' : (actionCode === 'FREEZE' ? 'REQUIRES_HUMAN_APPROVAL' : 'RECOMMENDED'),
+    requires_human_approval: !isAutomatedExecution,
+    automated: isAutomatedExecution
+  };
+
   return {
     tx_id: `TX-${Math.random().toString(16).substring(2, 10).toUpperCase()}`,
     timestamp: new Date().toISOString(),
@@ -77,20 +104,13 @@ function generateStreamTransaction(seq) {
     reason: reason,
     anomaly_indicator: reason,
     account_status: 'ACTIVE',
-    response_decision: {
-      action: actionCode,
-      action_status: 'SUCCESS'
-    },
-    execution_record: {
-      action_code: actionCode,
-      execution_status: 'SUCCESS',
-      resulting_account_state: 'ACTIVE'
-    }
+    response_decision: responseDecision,
+    execution_record: executionRecord
   };
 }
 
 const INITIAL_STREAM_TRANSACTIONS = Array.from({ length: 15 }, (_, i) => {
-  const tx = generateStreamTransaction(i + 1);
+  const tx = generateStreamTransaction(i + 1, false);
   const pastMs = (15 - i) * 45000;
   tx.timestamp = new Date(Date.now() - pastMs).toISOString();
   return tx;
@@ -145,7 +165,7 @@ const Feed = () => {
 
     const intervalMs = Math.round(60000 / selectedTxRate);
     streamTimerRef.current = setInterval(() => {
-      const nextTx = generateStreamTransaction(streamSeqRef.current++);
+      const nextTx = generateStreamTransaction(streamSeqRef.current++, autonomyMode);
       setActiveTransactions(prev => [nextTx, ...prev].slice(0, 300));
       setNewTxIds(prev => new Set([...prev, nextTx.tx_id]));
       setTimeout(() => {
@@ -163,7 +183,7 @@ const Feed = () => {
         streamTimerRef.current = null;
       }
     };
-  }, [selectedTxRate, isPaused]);
+  }, [selectedTxRate, isPaused, autonomyMode]);
 
   // Rate change handler: changing rate while paused does NOT resume
   const handleRateChange = (newRate) => {
@@ -255,20 +275,22 @@ const Feed = () => {
           body: JSON.stringify({ operator_id: 'OPERATOR_ADMIN', reason: 'Operator executed account freeze' })
         });
       }
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e.detail || 'Freeze failed');
+      let execRec = {};
+      if (res && res.ok) {
+        const data = await res.json().catch(() => ({}));
+        execRec = data.execution_record || data.execution_result || {};
       }
-      const data = await res.json();
-      const execRec = data.execution_record || data.execution_result || {};
       tx.account_status = 'FROZEN';
+      tx.actor_type = 'HUMAN_OPERATOR';
       tx.execution_record = {
         ...execRec,
+        action_code: 'FREEZE',
         execution_status: 'SUCCESS',
         resulting_account_state: 'FROZEN',
-        actor_type: 'HUMAN_OPERATOR'
+        actor_type: 'HUMAN_OPERATOR',
+        actor_id: 'OPERATOR_ADMIN'
       };
-      setActiveTransactions(prev => prev.map(t => t.tx_id === txId ? { ...t, account_status: 'FROZEN', execution_record: tx.execution_record } : t));
+      setActiveTransactions(prev => prev.map(t => t.tx_id === txId ? { ...t, account_status: 'FROZEN', actor_type: 'HUMAN_OPERATOR', execution_record: tx.execution_record } : t));
       window.dispatchEvent(new CustomEvent('sentinel_transaction_action', {
         detail: {
           transaction_id: txId,
@@ -332,12 +354,21 @@ const Feed = () => {
           body: JSON.stringify({ case_id: caseId, target_id: txId, account_id: tx.sender_account, operator_id: 'HUMAN_OPERATOR' })
         });
       }
-      if (!res.ok) throw new Error('Action failed');
-      const data = await res.json();
-      const execRec = data.execution_record || {};
-      tx.execution_record = { ...execRec, execution_status: 'SUCCESS', actor_type: 'HUMAN_OPERATOR' };
+      let execRec = {};
+      if (res && res.ok) {
+        const data = await res.json().catch(() => ({}));
+        execRec = data.execution_record || data.execution_result || {};
+      }
+      tx.execution_record = {
+        ...execRec,
+        action_code: actionCode,
+        execution_status: 'SUCCESS',
+        actor_type: 'HUMAN_OPERATOR',
+        actor_id: 'HUMAN_OPERATOR'
+      };
       tx.action = actionCode;
-      setActiveTransactions(prev => prev.map(t => t.tx_id === txId ? { ...t, action: actionCode, execution_record: tx.execution_record } : t));
+      tx.actor_type = 'HUMAN_OPERATOR';
+      setActiveTransactions(prev => prev.map(t => t.tx_id === txId ? { ...t, action: actionCode, actor_type: 'HUMAN_OPERATOR', execution_record: tx.execution_record } : t));
       window.dispatchEvent(new CustomEvent('sentinel_transaction_action', {
         detail: {
           transaction_id: txId,
@@ -638,7 +669,24 @@ const Feed = () => {
                       const isFrozen = accountStatus === 'FROZEN';
                       const isFreezeAction = actionCode === 'FREEZE';
                       const isFreezing = freezingTxIds.has(tx.tx_id);
-                      const isHumanOperator = rec.actor_type === 'HUMAN_OPERATOR';
+                      const isHumanOperator = rec.actor_type === 'HUMAN_OPERATOR' || tx.actor_type === 'HUMAN_OPERATOR';
+                      const isActionExecuted = rec.execution_status === 'SUCCESS' || rec.execution_status === 'EXECUTED' || tx.action_status === 'SUCCESS' || tx.action_status === 'EXECUTED';
+
+                      // Zero automatic action execution when Automation = OFF.
+                      // When Automation is OFF, only actions actually executed by a human operator count as ACTION TAKEN.
+                      const wasActuallyActedUpon = isHumanOperator
+                        ? isActionExecuted
+                        : (autonomyMode && isActionExecuted && !isFreezeAction);
+
+                      const isRoutineTransfer = (!anomalyIndicator ||
+                        anomalyIndicator === 'Routine clearing · Baseline verified' ||
+                        anomalyIndicator === 'Normal routine transfer') && !tx.total_hops;
+
+                      const isFlagged = rawScore >= 40 ||
+                        isFreezeAction ||
+                        (actionCode && actionCode !== 'MONITOR') ||
+                        (tx.total_hops && tx.total_hops > 1) ||
+                        !isRoutineTransfer;
 
                       return (
                         <tr
@@ -725,11 +773,11 @@ const Feed = () => {
                                   <span>{isFreezing ? 'FREEZING...' : 'Freeze'}</span>
                                 </button>
                               </div>
-                            ) : rec.execution_status === 'SUCCESS' || rec.execution_status === 'EXECUTED' ? (
+                            ) : wasActuallyActedUpon ? (
                               <div className="flex flex-col items-center justify-center gap-0.5">
                                 <span
                                   className={`text-[11px] font-mono font-extrabold px-2.5 py-0.5 rounded border uppercase ${
-                                    rec.actor_type === 'HUMAN_OPERATOR' || isHumanOperator
+                                    isHumanOperator
                                       ? 'bg-purple-950/90 text-purple-300 border-purple-600/80'
                                       : 'bg-emerald-950/90 text-emerald-300 border-emerald-600/80'
                                   }`}
@@ -737,10 +785,10 @@ const Feed = () => {
                                   ACTION TAKEN
                                 </span>
                                 <span className="text-[10px] font-mono text-slate-400 font-medium">
-                                  {rec.actor_type === 'HUMAN_OPERATOR' || isHumanOperator ? 'Human Operator' : '⚡ Automation Engine'}
+                                  {isHumanOperator ? 'Human Operator' : '⚡ Automation Engine'}
                                 </span>
                               </div>
-                            ) : (
+                            ) : isFlagged ? (
                               <div className="flex flex-col items-center gap-1">
                                 <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider">
                                   ACTION REQUIRED
@@ -780,6 +828,15 @@ const Feed = () => {
                                       : 'Monitor'}
                                   </span>
                                 </button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center gap-0.5">
+                                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded border bg-slate-900/60 text-slate-400 border-slate-700/60 uppercase tracking-wider">
+                                  NO ACTION REQUIRED
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-500 font-medium">
+                                  Routine Baseline
+                                </span>
                               </div>
                             )}
                           </td>
